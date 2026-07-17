@@ -4,13 +4,13 @@
 
 FROM node:20-slim AS build
 WORKDIR /app
-# Match the npm version the lockfile was generated with — npm 10 (bundled
-# with node:20) and npm 11 resolve optional platform-specific binaries
-# (e.g. @rolldown/binding-*) differently, which makes `npm ci` reject an
-# otherwise-valid lockfile as "out of sync".
-RUN npm install -g npm@11
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm ci rejects this lockfile in a fresh Linux container — it wants
+# @emnapi/core/@emnapi/runtime versions that vary depending on exactly
+# which npm resolves a Vite/Rolldown optional platform binary, and pinning
+# the npm version didn't make that deterministic either. npm install
+# tolerates the drift instead of hard-failing on it.
+RUN npm install
 COPY . .
 RUN npm run build
 
