@@ -16,6 +16,7 @@ import { NodeEditorModal } from "./components/NodeEditorModal";
 import { TaskEditorModal } from "./components/TaskEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
 import { useSampleAutoload } from "./hooks/useSampleAutoload";
+import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
 
 const SAMPLE = sampleDataRaw as unknown as LoomDocument;
 
@@ -25,6 +26,51 @@ function App() {
   const loom = useLoomState(SAMPLE);
   const [editor, setEditor] = useState<EditorState>(null);
   const [autoloadStatus, setAutoloadStatus] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+
+  // A shared link carries its document entirely in the URL fragment (never
+  // sent to the server — see src/urlShare.ts), so loading one just means
+  // decoding location.hash once at startup, no network round-trip.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const fromHash = await decodeDocFromLocationHash();
+        if (fromHash) loom.loadDocument(fromHash);
+      } catch {
+        setShareStatus("共有リンクの読み込みに失敗しました");
+      }
+    })();
+    // Only read the hash once, on the document this tab was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCopyShareLink = useCallback(() => {
+    if (!loom.doc) return;
+    void (async () => {
+      let url: string;
+      try {
+        url = await encodeDocToShareUrl(loom.doc!);
+      } catch {
+        setShareStatus("共有リンクの作成に失敗しました");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareStatus("共有リンクをコピーしました");
+      } catch {
+        // Clipboard access can be blocked (permissions, non-secure context,
+        // some embedded browsers) even though the link itself was built
+        // fine — fall back to showing it so the user can copy by hand.
+        window.prompt("コピーできませんでした。手動でコピーしてください:", url);
+      }
+    })();
+  }, [loom]);
+
+  useEffect(() => {
+    if (!shareStatus) return;
+    const timer = setTimeout(() => setShareStatus(null), 4000);
+    return () => clearTimeout(timer);
+  }, [shareStatus]);
 
   const archFlow = useMemo(() => {
     if (!loom.doc) return { nodes: [], edges: [] };
@@ -80,7 +126,12 @@ function App() {
             JSONを表示/編集
           </button>
           <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
-          {autoloadStatus && <span className="autoload-status">{autoloadStatus}</span>}
+          <button onClick={handleCopyShareLink} disabled={!loom.doc}>
+            共有リンクをコピー
+          </button>
+          {(autoloadStatus || shareStatus) && (
+            <span className="autoload-status">{autoloadStatus ?? shareStatus}</span>
+          )}
         </div>
       </header>
 

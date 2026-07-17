@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+.git
+*.local
+.DS_Store
+
+# Same reasoning as .gitignore: don't bundle official vendor icons into a
+# publicly deployed image, even though they exist locally on disk.
+src/assets/icons/aws-*.svg
+src/assets/icons/gcp-*.svg
+src/assets/icons/azure-*.svg
