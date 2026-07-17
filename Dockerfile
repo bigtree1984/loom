@@ -4,6 +4,11 @@
 
 FROM node:20-slim AS build
 WORKDIR /app
+# Match the npm version the lockfile was generated with — npm 10 (bundled
+# with node:20) and npm 11 resolve optional platform-specific binaries
+# (e.g. @rolldown/binding-*) differently, which makes `npm ci` reject an
+# otherwise-valid lockfile as "out of sync".
+RUN npm install -g npm@11
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
