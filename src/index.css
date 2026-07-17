@@ -1,0 +1,95 @@
+:root {
+  --loom-bg: #ffffff;
+  --loom-panel-bg: #faf9f5;
+  --loom-border: #e0dfd8;
+  --loom-text-primary: #2c2c2a;
+  --loom-text-secondary: #5f5e5a;
+  --loom-accent: #854f0b;
+  --loom-danger: #a32d2d;
+
+  /* Fixed 5-color dot palette for architecture-node categories, independent
+     of the amber/purple route-highlight colors above. */
+  --loom-dot-1: #378adb;
+  --loom-dot-2: #7f77dd;
+  --loom-dot-3: #1d9e75;
+  --loom-dot-4: #ba7517;
+  --loom-dot-5: #d4537e;
+
+  color-scheme: light dark;
+  font: 14px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+  color: var(--loom-text-primary);
+  background: var(--loom-bg);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --loom-bg: #16171d;
+    --loom-panel-bg: #1c1d24;
+    --loom-border: #33343d;
+    --loom-text-primary: #ececec;
+    --loom-text-secondary: #a3a3a8;
+    --loom-accent: #f0997b;
+    --loom-danger: #e4787a;
+
+    --loom-dot-1: #85b7eb;
+    --loom-dot-2: #afa9ec;
+    --loom-dot-3: #5dcaa5;
+    --loom-dot-4: #fac775;
+    --loom-dot-5: #ed93b1;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--loom-border);
+  background: var(--loom-panel-bg);
+  color: var(--loom-text-primary);
+  border-radius: 6px;
+  padding: 6px 14px;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--loom-accent);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--loom-text-primary);
+  background: var(--loom-bg);
+  border: 1px solid var(--loom-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--loom-accent);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--loom-text-secondary);
+}

@@ -1,0 +1,110 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "scripts", "label": "ローカルスクリプト" },
+      { "id": "external_apis", "label": "外部AI API" }
+    ],
+    "nodes": [
+      { "id": "human", "label": "人間(承認者)", "type": "human" },
+      { "id": "claude", "label": "Claude", "type": "agent" },
+      { "id": "generate_images_script", "label": "generate_images.py", "type": "backend", "group": "scripts" },
+      { "id": "generate_audio_script", "label": "generate_audio.py", "type": "backend", "group": "scripts" },
+      { "id": "align_captions_script", "label": "align_captions.py", "type": "backend", "group": "scripts" },
+      { "id": "render_video_script", "label": "render_video.py", "type": "backend", "group": "scripts" },
+      { "id": "imagen", "label": "Imagen / Gemini画像", "type": "agent", "group": "external_apis" },
+      { "id": "gemini_tts", "label": "Gemini TTS", "type": "agent", "group": "external_apis" },
+      { "id": "google_stt", "label": "Google STT", "type": "agent", "group": "external_apis" },
+      { "id": "structure_json", "label": "structure.json", "type": "storage" },
+      { "id": "images_dir", "label": "images/", "type": "storage" },
+      { "id": "audio_file", "label": "audio/narration.wav", "type": "storage" },
+      { "id": "output_video", "label": "output.mp4", "type": "storage" }
+    ],
+    "edges": [
+      { "a": "human", "b": "claude" },
+      { "a": "claude", "b": "structure_json" },
+      { "a": "claude", "b": "generate_images_script" },
+      { "a": "generate_images_script", "b": "imagen" },
+      { "a": "generate_images_script", "b": "images_dir", "label": "保存" },
+      { "a": "claude", "b": "generate_audio_script" },
+      { "a": "generate_audio_script", "b": "gemini_tts" },
+      { "a": "generate_audio_script", "b": "audio_file", "label": "保存" },
+      { "a": "claude", "b": "align_captions_script" },
+      { "a": "align_captions_script", "b": "google_stt" },
+      { "a": "align_captions_script", "b": "audio_file", "label": "読取" },
+      { "a": "claude", "b": "render_video_script" },
+      { "a": "render_video_script", "b": "images_dir", "label": "読取" },
+      { "a": "render_video_script", "b": "audio_file", "label": "読取" },
+      { "a": "render_video_script", "b": "output_video", "label": "書出" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "台本設計",
+        "description": "Claudeがヒアリングとカット構成設計を行い、structure.jsonを作成する。",
+        "mainNode": "claude",
+        "inputNodes": ["human"],
+        "outputNodes": ["structure_json"]
+      },
+      {
+        "id": "t2",
+        "label": "台本承認ゲート",
+        "description": "人間が台本・ナレーション内容を確認し、承認するか差し戻すかを選ぶ。",
+        "mainNode": "human",
+        "inputNodes": ["structure_json"],
+        "outputNodes": []
+      },
+      {
+        "id": "t3",
+        "label": "画像生成",
+        "description": "generate_images.pyがImagen/Gemini画像生成を呼び出し、images/に保存する。",
+        "mainNode": "generate_images_script",
+        "inputNodes": ["structure_json"],
+        "outputNodes": ["imagen", "images_dir"]
+      },
+      {
+        "id": "t4",
+        "label": "静止画承認ゲート",
+        "description": "人間が生成された3枚の画像を確認し、承認するか差し戻すかを選ぶ。",
+        "mainNode": "human",
+        "inputNodes": ["images_dir"],
+        "outputNodes": []
+      },
+      {
+        "id": "t5",
+        "label": "ナレーション生成",
+        "description": "generate_audio.pyがGemini TTSを呼び出し、audio/narration.wavを生成する。",
+        "mainNode": "generate_audio_script",
+        "inputNodes": ["structure_json"],
+        "outputNodes": ["gemini_tts", "audio_file"]
+      },
+      {
+        "id": "t6",
+        "label": "字幕整列",
+        "description": "align_captions.pyがGoogle STTで単語タイムスタンプを取得し、structure.jsonに書き戻す。",
+        "mainNode": "align_captions_script",
+        "inputNodes": ["audio_file", "structure_json"],
+        "outputNodes": ["google_stt", "structure_json"]
+      },
+      {
+        "id": "t7",
+        "label": "レンダリング",
+        "description": "render_video.pyがatoms/molecules/organismsを合成し、output.mp4を書き出す。",
+        "mainNode": "render_video_script",
+        "inputNodes": ["images_dir", "audio_file", "structure_json"],
+        "outputNodes": ["output_video"]
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3", "label": "承認" },
+      { "from": "t2", "to": "t1", "label": "差し戻し" },
+      { "from": "t3", "to": "t4" },
+      { "from": "t4", "to": "t5", "label": "承認" },
+      { "from": "t4", "to": "t3", "label": "差し戻し" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7" }
+    ]
+  }
+}

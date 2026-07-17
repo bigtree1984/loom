@@ -1,0 +1,158 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "ci_pipeline", "label": "CI/CDパイプライン" },
+      { "id": "stores", "label": "リポジトリ/成果物" }
+    ],
+    "nodes": [
+      { "id": "developer", "label": "開発者", "type": "human" },
+      { "id": "git_repo", "label": "Gitリポジトリ", "type": "storage", "group": "stores" },
+      { "id": "ci_runner", "label": "CIランナー", "type": "backend", "group": "ci_pipeline" },
+      { "id": "test_runner", "label": "テスト実行", "type": "agent", "group": "ci_pipeline" },
+      { "id": "coverage_service", "label": "カバレッジ計測", "type": "agent", "group": "ci_pipeline" },
+      { "id": "dependency_scanner", "label": "依存関係スキャン", "type": "agent", "group": "ci_pipeline" },
+      { "id": "license_checker", "label": "ライセンス確認", "type": "agent", "group": "ci_pipeline" },
+      { "id": "sast_scanner", "label": "静的解析(SAST)", "type": "agent", "group": "ci_pipeline" },
+      { "id": "secret_scanner", "label": "シークレット検出", "type": "agent", "group": "ci_pipeline" },
+      { "id": "artifact_store", "label": "ビルド成果物", "type": "storage", "group": "stores" },
+      { "id": "notification_service", "label": "通知サービス", "type": "agent" }
+    ],
+    "edges": [
+      { "a": "developer", "b": "git_repo", "label": "push" },
+      { "a": "git_repo", "b": "ci_runner" },
+      { "a": "ci_runner", "b": "test_runner" },
+      { "a": "test_runner", "b": "coverage_service" },
+      { "a": "ci_runner", "b": "dependency_scanner" },
+      { "a": "dependency_scanner", "b": "license_checker" },
+      { "a": "ci_runner", "b": "sast_scanner" },
+      { "a": "ci_runner", "b": "secret_scanner" },
+      { "a": "ci_runner", "b": "artifact_store" },
+      { "a": "artifact_store", "b": "notification_service" },
+      { "a": "notification_service", "b": "developer", "label": "通知" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "push",
+        "description": "開発者がコードをGitリポジトリにpushする。",
+        "mainNode": "developer",
+        "inputNodes": [],
+        "outputNodes": ["git_repo"]
+      },
+      {
+        "id": "t2",
+        "label": "CIトリガー",
+        "description": "pushを検知してCIランナーがビルドを開始し、テスト系とセキュリティ系の検査を並行して起動する。",
+        "mainNode": "ci_runner",
+        "inputNodes": ["git_repo"],
+        "outputNodes": []
+      },
+      {
+        "id": "t3a",
+        "label": "テスト実行",
+        "description": "test_runnerがユニットテストを実行する。セキュリティスキャンと並行。",
+        "mainNode": "test_runner",
+        "inputNodes": ["ci_runner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t3b",
+        "label": "カバレッジ計測",
+        "description": "coverage_serviceがテスト結果からカバレッジ率を計測する。",
+        "mainNode": "coverage_service",
+        "inputNodes": ["test_runner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4a",
+        "label": "依存関係スキャン",
+        "description": "dependency_scannerが依存パッケージの脆弱性を確認する。テストと並行。",
+        "mainNode": "dependency_scanner",
+        "inputNodes": ["ci_runner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4b",
+        "label": "ライセンス確認",
+        "description": "license_checkerが依存パッケージのライセンス互換性を確認する。",
+        "mainNode": "license_checker",
+        "inputNodes": ["dependency_scanner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4c",
+        "label": "静的解析",
+        "description": "sast_scannerがコードの静的セキュリティ解析を行う。",
+        "mainNode": "sast_scanner",
+        "inputNodes": ["ci_runner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4d",
+        "label": "シークレット検出",
+        "description": "secret_scannerがコード中の漏洩した認証情報を検出する。",
+        "mainNode": "secret_scanner",
+        "inputNodes": ["ci_runner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t5",
+        "label": "レポート集約",
+        "description": "テスト結果とセキュリティスキャン結果の両方が揃った時点で、CIランナーがビルドレポートを集約する。",
+        "mainNode": "ci_runner",
+        "inputNodes": ["coverage_service", "secret_scanner"],
+        "outputNodes": []
+      },
+      {
+        "id": "t6",
+        "label": "成果物アップロード",
+        "description": "CIランナーがビルド成果物をartifact_storeにアップロードする。",
+        "mainNode": "ci_runner",
+        "inputNodes": [],
+        "outputNodes": ["artifact_store"]
+      },
+      {
+        "id": "t7",
+        "label": "結果通知",
+        "description": "notification_serviceが開発者にCI結果を通知する。",
+        "mainNode": "notification_service",
+        "inputNodes": ["artifact_store"],
+        "outputNodes": ["developer"]
+      },
+      {
+        "id": "t8",
+        "label": "レビューゲート",
+        "description": "開発者がCI結果を確認し、マージするか修正して再pushするかを選ぶ。",
+        "mainNode": "developer",
+        "inputNodes": ["notification_service"],
+        "outputNodes": []
+      },
+      {
+        "id": "t9",
+        "label": "マージ完了",
+        "description": "承認されたコードをGitリポジトリにマージして完了する。",
+        "mainNode": "ci_runner",
+        "inputNodes": ["developer"],
+        "outputNodes": ["git_repo"]
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3a" },
+      { "from": "t2", "to": "t4a" },
+      { "from": "t3a", "to": "t3b" },
+      { "from": "t4a", "to": "t4b" },
+      { "from": "t4b", "to": "t4c" },
+      { "from": "t4c", "to": "t4d" },
+      { "from": "t3b", "to": "t5" },
+      { "from": "t4d", "to": "t5" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7" },
+      { "from": "t7", "to": "t8" },
+      { "from": "t8", "to": "t9", "label": "承認" },
+      { "from": "t8", "to": "t1", "label": "差し戻し" }
+    ]
+  }
+}

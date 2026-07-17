@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Official vendor architecture icons (AWS/GCP/Azure) — their usage terms
+# permit using them to build diagrams but discourage redistributing the
+# icon set itself, so these are downloaded locally rather than committed.
+# See src/assets/icons/README.md for how to add them back.
+src/assets/icons/aws-*.svg
+src/assets/icons/gcp-*.svg
+src/assets/icons/azure-*.svg

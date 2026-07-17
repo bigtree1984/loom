@@ -1,0 +1,133 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "cloud_run", "label": "Cloud Run" },
+      { "id": "gcp_data", "label": "データストア" }
+    ],
+    "nodes": [
+      { "id": "human", "label": "人間(依頼者)", "type": "human" },
+      { "id": "frontend", "label": "フロントエンド", "type": "frontend" },
+      { "id": "backend", "label": "バックエンド", "type": "backend", "group": "cloud_run" },
+      { "id": "router_agent", "label": "ルーターエージェント", "type": "agent", "group": "cloud_run" },
+      { "id": "collector_agent", "label": "収集エージェント", "type": "agent", "group": "cloud_run" },
+      { "id": "analysis_agent", "label": "分析エージェント", "type": "agent", "group": "cloud_run" },
+      { "id": "summary_agent", "label": "要約エージェント", "type": "agent", "group": "cloud_run" },
+      { "id": "writer_agent", "label": "執筆エージェント", "type": "agent", "group": "cloud_run" },
+      { "id": "gcs", "label": "GCS", "type": "storage", "group": "gcp_data" },
+      { "id": "bigquery", "label": "BigQuery", "type": "storage", "group": "gcp_data" }
+    ],
+    "edges": [
+      { "a": "human", "b": "frontend" },
+      { "a": "frontend", "b": "backend", "label": "通知" },
+      { "a": "backend", "b": "router_agent" },
+      { "a": "backend", "b": "collector_agent" },
+      { "a": "backend", "b": "analysis_agent" },
+      { "a": "backend", "b": "summary_agent" },
+      { "a": "backend", "b": "writer_agent" },
+      { "a": "collector_agent", "b": "gcs", "label": "保存" },
+      { "a": "gcs", "b": "bigquery", "label": "ロード" },
+      { "a": "analysis_agent", "b": "bigquery", "label": "クエリ" },
+      { "a": "summary_agent", "b": "gcs", "label": "読取" },
+      { "a": "writer_agent", "b": "gcs", "label": "ドラフト保存" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "リクエスト送信",
+        "description": "人間がフロントエンド経由でレポート依頼を送信し、バックエンドが受け付ける。",
+        "mainNode": "frontend",
+        "inputNodes": ["human"],
+        "outputNodes": ["backend"]
+      },
+      {
+        "id": "t2",
+        "label": "ルーティング判定",
+        "description": "ルーターエージェントが依頼内容を解析し、既存データで足りるか新規収集が必要かを判断する。",
+        "mainNode": "router_agent",
+        "inputNodes": ["backend"],
+        "outputNodes": []
+      },
+      {
+        "id": "t3a",
+        "label": "BigQuery直接クエリ",
+        "description": "既存データで足りる場合、分析エージェントがBigQueryへ直接クエリする準備をする。",
+        "mainNode": "analysis_agent",
+        "inputNodes": ["bigquery"],
+        "outputNodes": []
+      },
+      {
+        "id": "t3b",
+        "label": "新規データ収集",
+        "description": "収集エージェントが外部から最新データを取得し、GCSに保存したのちBigQueryへロードする。",
+        "mainNode": "collector_agent",
+        "inputNodes": [],
+        "outputNodes": ["gcs", "bigquery"]
+      },
+      {
+        "id": "t4a",
+        "label": "数値分析",
+        "description": "分析エージェントがBigQuery上のデータを集計・分析する。要約と並行して実行される。",
+        "mainNode": "analysis_agent",
+        "inputNodes": ["bigquery"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4b",
+        "label": "定性要約",
+        "description": "要約エージェントがGCS上の関連文書を読み込み、定性的な要約を作成する。分析と並行して実行される。",
+        "mainNode": "summary_agent",
+        "inputNodes": ["gcs"],
+        "outputNodes": []
+      },
+      {
+        "id": "t5",
+        "label": "レポート執筆",
+        "description": "執筆エージェントが数値分析と定性要約をマージしてレポートドラフトを生成し、GCSに保存する。",
+        "mainNode": "writer_agent",
+        "inputNodes": ["bigquery", "gcs"],
+        "outputNodes": ["gcs"]
+      },
+      {
+        "id": "t6",
+        "label": "ドラフト通知",
+        "description": "バックエンドがドラフト完成をフロントエンドに通知する。",
+        "mainNode": "backend",
+        "inputNodes": ["gcs"],
+        "outputNodes": ["frontend"]
+      },
+      {
+        "id": "t7",
+        "label": "人間レビュー",
+        "description": "人間がフロントエンド上でドラフトを確認し、承認するか執筆エージェントへ差し戻すかを選ぶ。",
+        "mainNode": "human",
+        "inputNodes": ["frontend"],
+        "outputNodes": []
+      },
+      {
+        "id": "t8",
+        "label": "完了",
+        "description": "承認されたレポートをGCSに最終保存して完了する。",
+        "mainNode": "gcs",
+        "inputNodes": ["writer_agent"],
+        "outputNodes": []
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3a", "label": "BigQueryで足りる" },
+      { "from": "t2", "to": "t3b", "label": "新規データが必要" },
+      { "from": "t3a", "to": "t4a" },
+      { "from": "t3a", "to": "t4b" },
+      { "from": "t3b", "to": "t4a" },
+      { "from": "t3b", "to": "t4b" },
+      { "from": "t4a", "to": "t5" },
+      { "from": "t4b", "to": "t5" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7" },
+      { "from": "t7", "to": "t8", "label": "承認" },
+      { "from": "t7", "to": "t5", "label": "差し戻し" }
+    ]
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "scripts", "label": "パイプラインスクリプト" },
+      { "id": "external", "label": "AI・外部サービス" },
+      { "id": "storage", "label": "データ保存先" }
+    ],
+    "nodes": [
+      { "id": "human", "label": "運営者(人間)", "type": "human" },
+      { "id": "bq", "label": "BigQuery\n(テーマ管理表)", "type": "storage", "group": "storage" },
+
+      { "id": "script_11", "label": "11_励まし選定\n(Generator-Critic)", "type": "backend", "group": "scripts" },
+      { "id": "gemini_text", "label": "Gemini\n(文章生成)", "type": "agent", "group": "external" },
+      { "id": "gemini_critic", "label": "Gemini\n(採点役=Critic)", "type": "agent", "group": "external" },
+
+      { "id": "script_12", "label": "12_台本本文生成", "type": "backend", "group": "scripts" },
+      { "id": "script_21", "label": "21_ナレーション生成", "type": "backend", "group": "scripts" },
+      { "id": "gemini_tts", "label": "Gemini TTS", "type": "agent", "group": "external" },
+      { "id": "script_22", "label": "22_画像生成・編集", "type": "backend", "group": "scripts" },
+      { "id": "gemini_image", "label": "Gemini\n(画像生成・編集)", "type": "agent", "group": "external" },
+      { "id": "script_31", "label": "31_動画合成", "type": "backend", "group": "scripts" },
+      { "id": "gcs", "label": "GCS\n(画像・音声・動画)", "type": "storage", "group": "storage" },
+      { "id": "script_41", "label": "41_YouTube投稿", "type": "backend", "group": "scripts" },
+      { "id": "youtube", "label": "YouTube", "type": "storage", "group": "external" },
+      { "id": "script_42", "label": "42_X投稿", "type": "backend", "group": "scripts" },
+      { "id": "x_platform", "label": "X(旧Twitter)", "type": "storage", "group": "external" }
+    ],
+    "edges": [
+      { "a": "human", "b": "bq", "label": "お題を登録" },
+
+      { "a": "script_11", "b": "bq" },
+      { "a": "script_11", "b": "gemini_text", "label": "候補を作らせる" },
+      { "a": "script_11", "b": "gemini_critic", "label": "点数をつけさせる" },
+
+      { "a": "script_12", "b": "bq" },
+      { "a": "script_12", "b": "gemini_text", "label": "台本本文を作らせる" },
+
+      { "a": "script_21", "b": "bq" },
+      { "a": "script_21", "b": "gemini_tts", "label": "声を作らせる" },
+      { "a": "script_21", "b": "gcs", "label": "音声を保存" },
+
+      { "a": "script_22", "b": "bq" },
+      { "a": "script_22", "b": "gemini_image", "label": "画像を作らせる/編集させる" },
+      { "a": "script_22", "b": "gcs", "label": "画像を保存" },
+
+      { "a": "script_31", "b": "gcs", "label": "画像・音声を読み込み→動画を書出" },
+      { "a": "script_31", "b": "bq" },
+
+      { "a": "script_41", "b": "gcs", "label": "動画を読込" },
+      { "a": "script_41", "b": "youtube", "label": "投稿" },
+      { "a": "script_41", "b": "bq", "label": "動画IDを記録" },
+
+      { "a": "script_42", "b": "bq" },
+      { "a": "script_42", "b": "x_platform", "label": "投稿" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "お題登録",
+        "description": "運営者がWeb管理画面で「どんな逆境シチュエーションか」をBigQueryに登録する。ここが唯一の人間の作業で、あとは全自動で進む。",
+        "mainNode": "human",
+        "inputNodes": [],
+        "outputNodes": ["bq"]
+      },
+      {
+        "id": "t2",
+        "label": "励ましフレーズの候補づくり",
+        "description": "Geminiに「リフレーミング」「成長マインドセット」「感謝」など5種類のポジティブ思考パターンで、励ましの英語フレーズ候補を5つ作らせる。",
+        "mainNode": "script_11",
+        "inputNodes": ["bq"],
+        "outputNodes": ["gemini_text"]
+      },
+      {
+        "id": "t3",
+        "label": "候補の採点",
+        "description": "別役のGemini(Critic)が5つの候補それぞれを0〜100点で採点する。一番いい点数の候補が「勝者」の最有力候補になる。",
+        "mainNode": "script_11",
+        "inputNodes": ["gemini_text"],
+        "outputNodes": ["gemini_critic"]
+      },
+      {
+        "id": "t4",
+        "label": "台本の残りを一気に生成",
+        "description": "勝った励ましフレーズをもとに、状況説明・しば子の解説・オチのセリフ・画像生成プロンプト・タイトルなどをまとめて生成し、BigQueryに保存する。",
+        "mainNode": "script_12",
+        "inputNodes": ["gemini_critic", "bq"],
+        "outputNodes": ["gemini_text", "bq"]
+      },
+      {
+        "id": "t5",
+        "label": "ナレーション生成",
+        "description": "しば子と主人公(登録された声IDから性別に合う声を選択)のセリフを、Gemini TTSで音声ファイルにしてGCSへ保存する。",
+        "mainNode": "script_21",
+        "inputNodes": ["bq"],
+        "outputNodes": ["gemini_tts", "gcs"]
+      },
+      {
+        "id": "t6",
+        "label": "画像の生成と編集",
+        "description": "まず「逆境の場面(visual1)」をテキストから1枚生成し、その画像そのものを編集する形で「立ち直った場面(visual2)」を作る。同じ画像を編集するので、2枚で人物や背景の見た目がぴったり揃う。",
+        "mainNode": "script_22",
+        "inputNodes": ["bq"],
+        "outputNodes": ["gemini_image", "gcs"]
+      },
+      {
+        "id": "t7",
+        "label": "動画に合成",
+        "description": "Cut10〜Cut50の5カットぶんの画像・音声・BGMを組み合わせて、1本の縦型ショート動画に書き出す。",
+        "mainNode": "script_31",
+        "inputNodes": ["gcs", "bq"],
+        "outputNodes": ["gcs"]
+      },
+      {
+        "id": "t8",
+        "label": "YouTube投稿",
+        "description": "完成した動画をYouTubeにアップロードし、動画IDをBigQueryに記録する。",
+        "mainNode": "script_41",
+        "inputNodes": ["gcs"],
+        "outputNodes": ["youtube", "bq"]
+      },
+      {
+        "id": "t9",
+        "label": "X投稿",
+        "description": "動画の情報をXにも投稿する。現在はX側のAPIクレジット切れで失敗するが、これはこのパイプラインの不具合ではなく外部要因。",
+        "mainNode": "script_42",
+        "inputNodes": ["bq"],
+        "outputNodes": ["x_platform"]
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3" },
+      { "from": "t3", "to": "t2", "label": "点数が低ければフィードバックしてもう1回だけ挑戦" },
+      { "from": "t3", "to": "t4", "label": "合格した候補を採用" },
+      { "from": "t4", "to": "t5" },
+      { "from": "t4", "to": "t6" },
+      { "from": "t5", "to": "t7" },
+      { "from": "t6", "to": "t7" },
+      { "from": "t7", "to": "t8" },
+      { "from": "t7", "to": "t9" }
+    ]
+  }
+}

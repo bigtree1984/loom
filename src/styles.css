@@ -1,0 +1,409 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--loom-border);
+  flex: 0 0 auto;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.app-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.app-tagline {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--loom-text-secondary);
+  margin: 0;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.process-flow-panel {
+  flex: 0 0 30%;
+  border-right: 1px solid var(--loom-border);
+}
+
+.architecture-column {
+  flex: 1 1 70%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.architecture-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--loom-text-secondary);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--loom-border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
+}
+
+.rf-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.loom-task-clickable:hover {
+  filter: brightness(0.95);
+}
+
+.loom-arch-node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.loom-arch-node-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.loom-arch-node-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.loom-arch-node-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.loom-arch-node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-footer {
+  border-top: 1px solid var(--loom-border);
+  background: var(--loom-panel-bg);
+  height: 76px;
+  flex: 0 0 76px;
+}
+
+/* Sized to comfortably fit two task entries at a glance (the max during a
+   parallel fork in practice); a third+ (or an unusually long description)
+   scrolls instead of overflowing. */
+.task-detail {
+  flex: 0 0 168px;
+  min-width: 0;
+  padding: 10px 16px;
+  overflow-y: auto;
+  border-top: 1px solid var(--loom-border);
+  background: var(--loom-panel-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.task-detail.empty {
+  color: var(--loom-text-secondary);
+}
+
+.task-detail-item + .task-detail-item {
+  margin-top: 8px;
+}
+
+.task-detail-label {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.task-detail-desc {
+  color: var(--loom-text-secondary);
+  font-size: 13px;
+}
+
+/* 戻る / 自動再生 sit in fixed-width columns that never move. All three
+   columns share the same width. The primary slot's content is bottom-
+   aligned so its LAST (bottom-most) button — the "keep going" action,
+   whether that's a plain 次へ or the forward choice in a decision — sits
+   at a fixed position regardless of how many choices are stacked above
+   it; only that stack grows upward. */
+.control-bar {
+  display: grid;
+  grid-template-columns: 160px 160px 160px;
+  align-items: end;
+  align-content: end;
+  gap: 12px;
+  padding: 12px 20px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.control-back,
+.control-autoplay {
+  width: 100%;
+}
+
+.control-primary {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.control-back,
+.control-autoplay,
+.control-choice {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.control-choice {
+  width: 100%;
+}
+
+.control-choice.forward {
+  border-color: var(--loom-accent);
+  color: var(--loom-accent);
+  font-weight: 600;
+}
+
+.control-choice.back {
+  border-color: var(--loom-danger);
+  color: var(--loom-danger);
+}
+
+.control-choice.complete {
+  color: var(--loom-text-secondary);
+  border-color: var(--loom-border);
+  opacity: 1;
+}
+
+.uploader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uploader-error {
+  color: #a32d2d;
+  font-size: 12px;
+}
+
+.autoload-status {
+  color: var(--loom-text-secondary);
+  font-size: 12px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--loom-border);
+  flex: 0 0 auto;
+}
+
+.panel-header .panel-title {
+  padding: 0;
+  border-bottom: none;
+}
+
+.panel-header button {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: var(--loom-bg);
+  border: 1px solid var(--loom-border);
+  border-radius: 10px;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modal-card-large {
+  width: 760px;
+}
+
+.json-editor-textarea {
+  width: 100%;
+  height: 60vh;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--loom-border);
+  position: sticky;
+  top: 0;
+  background: var(--loom-bg);
+}
+
+.modal-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.modal-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--loom-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.modal-checkbox-list label {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--loom-text-primary);
+}
+
+.modal-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--loom-text-secondary);
+  margin: 4px 0 -4px;
+}
+
+.modal-conn-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.modal-conn-row .modal-conn-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-conn-row button {
+  padding: 2px 8px;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.modal-add-conn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.modal-add-conn select {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-add-conn input {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--loom-border);
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-error {
+  color: var(--loom-danger);
+  font-size: 12px;
+}
