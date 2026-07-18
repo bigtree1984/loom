@@ -1,0 +1,34 @@
+# gcloud defaults to using .gitignore (via an auto-generated
+# #!include:.gitignore) when no .gcloudignore is present, which would
+# exclude the vendor architecture icons from the Cloud Build upload even
+# after .dockerignore was fixed to bundle them into the image. This file
+# stands alone (no #!include) so the upload matches .dockerignore instead:
+# everything .gitignore excludes, except the vendor icons.
+.gcloudignore
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.git
