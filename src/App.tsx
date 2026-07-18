@@ -15,6 +15,7 @@ import { TaskDetailPanel } from "./components/TaskDetailPanel";
 import { JsonUploader } from "./components/JsonUploader";
 import { NodeEditorModal } from "./components/NodeEditorModal";
 import { TaskEditorModal } from "./components/TaskEditorModal";
+import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
 import { useSampleAutoload } from "./hooks/useSampleAutoload";
 import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
@@ -30,7 +31,7 @@ const EMPTY_LANE_LAYOUT: LaneLayoutResult = {
   nodeWidth: 0,
 };
 
-type EditorState = { kind: "node" | "task"; id: string | null } | { kind: "json" } | null;
+type EditorState = { kind: "node" | "task" | "group"; id: string | null } | { kind: "json" } | null;
 
 function App() {
   const loom = useLoomState(SAMPLE);
@@ -211,6 +212,8 @@ function App() {
               onNodeDragEnd={handleNodeDragEnd}
               onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
               onAddNode={() => setEditor({ kind: "node", id: null })}
+              onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
+              onAddGroup={() => setEditor({ kind: "group", id: null })}
             />
           </ReactFlowProvider>
           <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
@@ -235,6 +238,9 @@ function App() {
       )}
       {editor?.kind === "task" && loom.doc && (
         <TaskEditorModal doc={loom.doc} taskId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />
+      )}
+      {editor?.kind === "group" && loom.doc && (
+        <GroupEditorModal doc={loom.doc} groupId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />
       )}
       {editor?.kind === "json" && loom.doc && (
         <JsonEditorModal doc={loom.doc} onSave={handleEditorSave} onClose={() => setEditor(null)} />

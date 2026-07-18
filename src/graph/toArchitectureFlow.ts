@@ -21,6 +21,7 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
   agent: "color_3",
   storage: "color_4",
   human: "color_5",
+  spacer: "color_1", // never actually rendered — a spacer has no dot
 };
 
 const NEUTRAL_BORDER = "var(--loom-border)";
@@ -32,6 +33,7 @@ const TYPE_LABEL: Record<ArchNodeType, string> = {
   backend: "バックエンド",
   agent: "エージェント",
   storage: "データ",
+  spacer: "空白",
 };
 
 /** Human-readable label for a lane key — a declared group's label, or a
@@ -91,6 +93,24 @@ export function toArchitectureFlow(
   const positions = layout.positions;
 
   const nodes: Node[] = architecture.nodes.map((n) => {
+    if (n.type === "spacer") {
+      const data: LoomArchNodeData = { label: "", fullLabel: "", dotColor: "", isSpacer: true };
+      return {
+        id: n.id,
+        type: "loomArchNode",
+        position: positions.get(n.id) ?? { x: 0, y: 0 },
+        data,
+        connectable: false,
+        style: {
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+          background: "transparent",
+          border: "1px dashed var(--loom-border)",
+          borderRadius: 8,
+          opacity: 0.5,
+        },
+      };
+    }
     const highlight = highlightedArchNodes.get(n.id);
     const isMain = highlight?.role === "main";
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;

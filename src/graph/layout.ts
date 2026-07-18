@@ -171,7 +171,7 @@ export interface LaneNode {
   rowOrder?: number;
 }
 
-const TYPE_FALLBACK_ORDER: ArchNodeType[] = ["frontend", "backend", "agent", "storage"];
+const TYPE_FALLBACK_ORDER: ArchNodeType[] = ["frontend", "backend", "agent", "storage", "spacer"];
 export const HUMAN_LANE = "__human__";
 
 /** Beyond this many lanes, exhaustive permutation search (n!) is dropped
@@ -366,11 +366,14 @@ export function layoutByLanes(
     nodes.some((n) => laneKeyOf(n) === key),
   );
   const humanLaneInUse = nodes.some((n) => n.type === "human") ? [HUMAN_LANE] : [];
-  const declaredGroupsInUse = groupOrder.filter((g) => nodes.some((n) => laneKeyOf(n) === g));
+  // Unlike the type-fallback lanes above, a *declared* group (one the
+  // author explicitly named in architecture.groups) always gets a lane,
+  // even with zero nodes in it yet — otherwise there's no way to drop a
+  // node into a newly-added lane, since it wouldn't exist to drop onto.
   // Seed order (only used to break ties deterministically, and as the
   // starting point for the heuristic search) — actual position is decided
   // by optimizeLaneOrder below.
-  const seedOrder = [...humanLaneInUse, ...declaredGroupsInUse, ...typeFallbacksInUse];
+  const seedOrder = [...humanLaneInUse, ...groupOrder, ...typeFallbacksInUse];
 
   const byLane = new Map<string, LaneNode[]>();
   const laneKeyOfId = new Map<string, string>();

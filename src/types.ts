@@ -1,4 +1,11 @@
-export type ArchNodeType = "human" | "frontend" | "backend" | "agent" | "storage";
+/**
+ * "spacer" is a layout-only placeholder — it takes up a normal row/lane
+ * slot but renders as an empty dashed box (no dot, no label, no icon) and
+ * is never a task's mainNode. Use it to reserve blank space within a
+ * lane, or to keep a declared-but-otherwise-empty lane visible so nodes
+ * can be dropped into it.
+ */
+export type ArchNodeType = "human" | "frontend" | "backend" | "agent" | "storage" | "spacer";
 
 /** Fixed 5-color dot palette (CSS-variable backed) used to mark a node's
  * category at a glance, independent of its highlight state. */

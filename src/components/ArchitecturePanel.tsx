@@ -18,6 +18,8 @@ interface Props {
   onNodeDragEnd: (nodeId: string, position: { x: number; y: number }) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onAddNode: () => void;
+  onGroupDoubleClick: (groupId: string) => void;
+  onAddGroup: () => void;
 }
 
 export function ArchitecturePanel({
@@ -28,6 +30,8 @@ export function ArchitecturePanel({
   onNodeDragEnd,
   onNodeDoubleClick,
   onAddNode,
+  onGroupDoubleClick,
+  onAddGroup,
 }: Props) {
   const [rfNodes, setRfNodes, onNodesChangeBase] = useNodesState(nodes);
 
@@ -107,7 +111,10 @@ export function ArchitecturePanel({
     <div className="panel architecture-panel">
       <div className="panel-header">
         <div className="panel-title">アーキテクチャ(空間)</div>
-        <button onClick={onAddNode}>+ノード追加</button>
+        <div className="panel-header-actions">
+          <button onClick={onAddGroup}>+レーン追加</button>
+          <button onClick={onAddNode}>+ノード追加</button>
+        </div>
       </div>
       <div className="rf-container">
         <ReactFlow
@@ -116,7 +123,14 @@ export function ArchitecturePanel({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onNodeDoubleClick={(_, node) => node.type !== "loomLaneHeader" && onNodeDoubleClick(node.id)}
+          onNodeDoubleClick={(_, node) => {
+            if (node.type === "loomLaneHeader") {
+              const key = node.id.slice("lane-header-".length);
+              if (!key.startsWith("__")) onGroupDoubleClick(key);
+              return;
+            }
+            onNodeDoubleClick(node.id);
+          }}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           nodesDraggable

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { ArchEdge, ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
 import { Modal } from "./Modal";
 
-const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
+const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage", "spacer"];
 const COLOR_TOKENS: ArchNodeColorToken[] = ["color_1", "color_2", "color_3", "color_4", "color_5"];
 
 interface Props {

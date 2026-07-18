@@ -39,7 +39,7 @@ document; a Loom document with `//` in it will fail to parse.
 {
   "id": "gcs",                 // unique, referenced by edges/tasks
   "label": "GCS\n(画像・音声・動画)", // "\n" makes a second line
-  "type": "storage",           // "human" | "frontend" | "backend" | "agent" | "storage"
+  "type": "storage",           // "human" | "frontend" | "backend" | "agent" | "storage" | "spacer"
   "group": "storage",          // optional — which lane this node lives in (see "Lanes")
   "colorToken": "color_4",     // optional — "color_1".."color_5", the category dot's color.
                                 // Omit to fall back to a type-based default.
@@ -51,6 +51,12 @@ document; a Loom document with `//` in it will fail to parse.
 `type: "human"` is special: the node is always placed in its own
 dedicated lane regardless of `group`, since it represents the
 actor/trigger rather than a pipeline stage.
+
+`type: "spacer"` is a layout-only placeholder: it takes up a normal row
+slot but renders as an empty dashed box (no dot, label, or icon), and
+should never be a task's `mainNode` or referenced by an edge. Use it to
+reserve blank space in a lane (combine with `rowOrder` to control where),
+or to keep a lane with no real nodes yet visible (see "Lanes").
 
 ### ArchEdge
 
@@ -120,6 +126,15 @@ The architecture diagram lays nodes out in vertical lanes (columns).
 Column membership comes from `group` (or `type` as a fallback for
 ungrouped nodes); row position within a lane comes from pipeline step
 order, or `rowOrder` when explicitly pinned.
+
+A lane declared in `architecture.groups` is always shown, even with zero
+nodes in it yet — unlike a `type`-fallback lane, which only appears once
+some ungrouped node actually needs it.
+
+`rowOrder` is a sort key, not an absolute row index — nodes are packed
+into consecutive rows in `rowOrder` order, so a gap in the numbers (e.g.
+0, 5, 10) does *not* leave blank rows. To actually reserve blank space
+within a lane, add a `type: "spacer"` node at the row you want empty.
 
 **Lane order** (left to right) is chosen automatically to minimize the
 number of edges that have to cross multiple lanes (a small Minimum

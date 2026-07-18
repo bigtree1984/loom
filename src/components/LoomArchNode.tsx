@@ -11,6 +11,10 @@ export interface LoomArchNodeData extends Record<string, unknown> {
   dotColor: string;
   /** Downloaded icon URL, or undefined if none is registered for this node yet. */
   iconUrl?: string;
+  /** A layout-only placeholder (ArchNode.type "spacer") — renders as an
+   * empty box (the dashed border comes from the node's own style, set in
+   * toArchitectureFlow), no dot/label/icon content at all. */
+  isSpacer?: boolean;
 }
 
 /**
@@ -26,6 +30,14 @@ export interface LoomArchNodeData extends Record<string, unknown> {
  */
 export function LoomArchNode({ data }: NodeProps) {
   const d = data as LoomArchNodeData;
+  if (d.isSpacer) {
+    return (
+      <>
+        <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
+        <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
+      </>
+    );
+  }
   return (
     <>
       <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
