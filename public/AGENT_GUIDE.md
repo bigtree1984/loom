@@ -48,9 +48,9 @@ document; a Loom document with `//` in it will fail to parse.
 }
 ```
 
-`type: "human"` is special: the node is always placed in its own
-dedicated lane regardless of `group`, since it represents the
-actor/trigger rather than a pipeline stage.
+`type: "human"` gets its own dedicated lane (like any other type's
+`__type_{type}` fallback) only when left ungrouped — set `group`
+explicitly to place a human node in a real declared lane instead.
 
 `type: "spacer"` is a layout-only placeholder: it takes up a normal row
 slot but renders as an empty dashed box (no dot, label, or icon), and

@@ -351,13 +351,12 @@ export function layoutByLanes(
   const laneGap = options.laneGap ?? 96;
   const rowGap = options.rowGap ?? 24;
 
-  // human is pulled into its own dedicated lane unconditionally — it's
-  // the actor/trigger, not part of any pipeline-stage grouping, and this
-  // is specifically what keeps it from ever colliding with a same-rank
-  // pipeline node the way it used to under dagre. Its left-to-right
-  // *position* is still subject to the same optimization as any other
-  // lane, though — nothing pins it to an edge anymore.
-  const laneKeyOf = (n: LaneNode) => (n.type === "human" ? HUMAN_LANE : (n.group ?? `__type_${n.type}`));
+  // An explicit group always wins, same as any other type — human only
+  // gets its own dedicated fallback lane (instead of a __type_human one)
+  // when left ungrouped, so it doesn't collide with a same-rank pipeline
+  // node the way it used to under dagre. Nothing stops an author (or a
+  // drag) from placing a human node in a real declared lane on purpose.
+  const laneKeyOf = (n: LaneNode) => n.group ?? (n.type === "human" ? HUMAN_LANE : `__type_${n.type}`);
 
   // Nodes without an explicit group still need a predictable lane instead
   // of crashing or bunching at the origin — bucket them by type, in a
@@ -365,7 +364,7 @@ export function layoutByLanes(
   const typeFallbacksInUse = TYPE_FALLBACK_ORDER.map((t) => `__type_${t}`).filter((key) =>
     nodes.some((n) => laneKeyOf(n) === key),
   );
-  const humanLaneInUse = nodes.some((n) => n.type === "human") ? [HUMAN_LANE] : [];
+  const humanLaneInUse = nodes.some((n) => laneKeyOf(n) === HUMAN_LANE) ? [HUMAN_LANE] : [];
   // Unlike the type-fallback lanes above, a *declared* group (one the
   // author explicitly named in architecture.groups) always gets a lane,
   // even with zero nodes in it yet — otherwise there's no way to drop a
