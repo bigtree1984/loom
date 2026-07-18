@@ -1,0 +1,141 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "repo", "label": "Gitリポジトリ" },
+      { "id": "cloud", "label": "GitHub/GCP" }
+    ],
+    "nodes": [
+      { "id": "human", "label": "あなた", "type": "human" },
+      { "id": "claude", "label": "Claude Code", "type": "agent" },
+      { "id": "sandbox_repo", "label": "モノレポ\n(0009_claude_code_sandbox)", "type": "storage", "group": "repo" },
+      { "id": "loom_repo", "label": "loom単体リポジトリ\n(~/loom)", "type": "storage", "group": "repo" },
+      { "id": "github", "label": "GitHub\n(bigtree1984/loom)", "type": "storage", "group": "cloud", "icon": "github", "colorToken": "color_1" },
+      { "id": "cloud_build", "label": "Cloud Build", "type": "backend", "group": "cloud", "icon": "docker", "colorToken": "color_2" },
+      { "id": "cloud_run", "label": "Cloud Run", "type": "backend", "group": "cloud", "icon": "gcp-cloud-storage", "colorToken": "color_4" },
+      { "id": "browser", "label": "ブラウザ\n(共有URL経由)", "type": "frontend" }
+    ],
+    "edges": [
+      { "a": "human", "b": "claude", "label": "要望を伝える" },
+      { "a": "claude", "b": "sandbox_repo", "label": "①②④を実装" },
+      { "a": "claude", "b": "loom_repo", "label": "切り出し・機能追加" },
+      { "a": "loom_repo", "b": "github", "label": "push" },
+      { "a": "loom_repo", "b": "cloud_build", "label": "ソース送信" },
+      { "a": "cloud_build", "b": "cloud_run", "label": "イメージ配置" },
+      { "a": "cloud_run", "b": "browser", "label": "共有URLでアクセス" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "改善要望のヒアリング",
+        "description": "ハイライト色、アイコン表示、配置の重なりなど①②④の要望を伝える。",
+        "mainNode": "human",
+        "inputNodes": [],
+        "outputNodes": ["claude"]
+      },
+      {
+        "id": "t2",
+        "label": "①②④の設計・実装",
+        "description": "ルートカラーの濃淡ペア化、アイコン+ドットのレイアウト、group単位のレーン配置を実装。",
+        "mainNode": "claude",
+        "inputNodes": ["claude"],
+        "outputNodes": ["sandbox_repo"]
+      },
+      {
+        "id": "t3",
+        "label": "レビュー・コミット依頼",
+        "description": "「レビューしてコミットします」で内容確認。",
+        "mainNode": "human",
+        "inputNodes": ["sandbox_repo"],
+        "outputNodes": []
+      },
+      {
+        "id": "t4",
+        "label": "モノレポへコミット",
+        "description": "①②④の変更を1コミットにまとめる。",
+        "mainNode": "claude",
+        "inputNodes": [],
+        "outputNodes": ["sandbox_repo"]
+      },
+      {
+        "id": "t5",
+        "label": "Loom単体リポジトリへ切り出し",
+        "description": "他プロジェクトの情報を含まない新規Git履歴で ~/loom を作成。",
+        "mainNode": "claude",
+        "inputNodes": ["sandbox_repo"],
+        "outputNodes": ["loom_repo"]
+      },
+      {
+        "id": "t6",
+        "label": "push許可の確認",
+        "description": "Public化すると誰でも見られる状態になる点を確認。",
+        "mainNode": "human",
+        "inputNodes": ["loom_repo"],
+        "outputNodes": []
+      },
+      {
+        "id": "t7",
+        "label": "GitHubへpush",
+        "description": "github.com/bigtree1984/loom に初回push。",
+        "mainNode": "claude",
+        "inputNodes": [],
+        "outputNodes": ["github"]
+      },
+      {
+        "id": "t8",
+        "label": "共有機能とDockerfileを実装",
+        "description": "URLフラグメント方式(サーバー非経由)の共有リンク機能と、静的配信用Dockerfileを追加。",
+        "mainNode": "claude",
+        "inputNodes": [],
+        "outputNodes": ["loom_repo"]
+      },
+      {
+        "id": "t9",
+        "label": "Cloud Runへデプロイ実行",
+        "description": "gcloud run deploy --source . でCloud Buildにソースを送信。",
+        "mainNode": "claude",
+        "inputNodes": ["loom_repo"],
+        "outputNodes": ["cloud_build"]
+      },
+      {
+        "id": "t10",
+        "label": "ビルド結果を確認",
+        "description": "npm ci がlockfileの依存解決ズレで3回失敗。ログを見てDockerfileを直す。",
+        "mainNode": "claude",
+        "inputNodes": ["cloud_build"],
+        "outputNodes": []
+      },
+      {
+        "id": "t11",
+        "label": "稼働開始",
+        "description": "ビルド成功、Cloud Runサービスがトラフィックを受け付け開始。",
+        "mainNode": "cloud_run",
+        "inputNodes": [],
+        "outputNodes": ["cloud_run"]
+      },
+      {
+        "id": "t12",
+        "label": "共有リンクで動作確認",
+        "description": "本番URLに#doc=を付けて新規タブで開き、JSONがサーバーに送られていないことをネットワークログで確認。",
+        "mainNode": "browser",
+        "inputNodes": ["cloud_run"],
+        "outputNodes": []
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3" },
+      { "from": "t3", "to": "t4", "label": "コミットOK" },
+      { "from": "t4", "to": "t5" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7", "label": "push許可" },
+      { "from": "t7", "to": "t8" },
+      { "from": "t8", "to": "t9" },
+      { "from": "t9", "to": "t10" },
+      { "from": "t10", "to": "t9", "label": "ビルド失敗:Dockerfile修正" },
+      { "from": "t10", "to": "t11", "label": "ビルド成功" },
+      { "from": "t11", "to": "t12" }
+    ]
+  }
+}
