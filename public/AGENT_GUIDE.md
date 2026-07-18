@@ -71,11 +71,11 @@ land in that lane — otherwise it falls back to a lane keyed by its `type`.
 ```jsonc
 {
   "id": "t5",
-  "label": "ナレーション生成",
-  "description": "しば子と主人公のセリフを、Gemini TTSで音声ファイルにしてGCSへ保存する。",
-  "mainNode": "script_21",       // architecture node id this task executes on
-  "inputNodes": ["bq"],          // architecture node ids it reads from
-  "outputNodes": ["gemini_tts", "gcs"] // architecture node ids it writes to / calls
+  "label": "音声を生成",
+  "description": "台本のセリフをTTSサービスで音声ファイルに変換し、ストレージへ保存する。",
+  "mainNode": "script_generator",     // architecture node id this task executes on
+  "inputNodes": ["database"],         // architecture node ids it reads from
+  "outputNodes": ["tts_service", "storage"] // architecture node ids it writes to / calls
 }
 ```
 
@@ -111,7 +111,7 @@ handful of lanes, even though the general problem is NP-hard). Set
 `architecture.laneOrder` to override this explicitly:
 
 ```jsonc
-"laneOrder": ["__human__", "scripts", "external", "storage"]
+"laneOrder": ["__human__", "frontend", "backend", "storage"]
 ```
 
 Entries are lane keys: a group id for a grouped lane, `"__human__"` for
@@ -125,12 +125,15 @@ too.
 ## Icons
 
 `icon` resolves against `src/assets/icons/{icon}.svg` in the deployed
-build. A handful of generic tech logos ship by default (`python`,
-`flask`, `react`, `postgresql`, `github`, `docker`). Official vendor
-icons (`aws-*`, `gcp-*`, `azure-*`) are not bundled — see the repo's
-`src/assets/icons/README.md` for the naming convention and how to add
-more. A missing icon key just falls back to the category dot + label —
-nothing breaks.
+build. Generic tech logos (`python`, `flask`, `react`, `postgresql`,
+`github`, `docker`) plus official AWS/GCP/Azure architecture icons
+(`aws-*`, `gcp-*`, `azure-*`) are bundled into the deployed app — see the
+repo's `src/assets/icons/README.md` for the full list and naming
+convention. The vendor icons are excluded from the git repo itself
+(licensing terms permit using them in diagrams, not redistributing the
+icon set as a standalone asset pack), so they won't show up if you
+inspect the source on GitHub, only in the running app. A missing icon
+key just falls back to the category dot + label — nothing breaks.
 
 ## Label length
 

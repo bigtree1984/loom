@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
-import sampleDataRaw from "./sample-data/report-agent-system.json";
+import sampleDataRaw from "./sample-data/pattern-showcase.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";

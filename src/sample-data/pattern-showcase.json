@@ -1,0 +1,161 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "ingest", "label": "投稿受付" },
+      { "id": "precheck", "label": "事前チェック" },
+      { "id": "routing", "label": "判定" },
+      { "id": "processing", "label": "処理" },
+      { "id": "storage", "label": "保存" },
+      { "id": "publish", "label": "公開" }
+    ],
+    "nodes": [
+      { "id": "contributor", "label": "投稿者", "type": "human" },
+      { "id": "content_api", "label": "投稿フォーム", "type": "frontend", "group": "ingest", "icon": "react" },
+      { "id": "pre_checker", "label": "事前チェックエージェント", "type": "agent", "group": "precheck" },
+      { "id": "spam_checker", "label": "スパム判定エージェント", "type": "agent", "group": "precheck" },
+      { "id": "duplicate_checker", "label": "重複判定エージェント", "type": "agent", "group": "precheck" },
+      { "id": "gatekeeper", "label": "事前チェック統合エージェント", "type": "agent", "group": "precheck" },
+      { "id": "router_agent", "label": "種別判定エージェント", "type": "agent", "group": "routing" },
+      { "id": "text_validator", "label": "テキスト処理エージェント", "type": "agent", "group": "processing" },
+      { "id": "image_processor", "label": "画像処理", "type": "backend", "group": "processing", "icon": "docker" },
+      { "id": "draft_compiler", "label": "下書き統合エージェント", "type": "agent", "group": "storage" },
+      { "id": "db", "label": "下書きDB", "type": "storage", "group": "storage", "icon": "postgresql" },
+      { "id": "reviewer", "label": "編集者", "type": "human" },
+      { "id": "publish_service", "label": "公開ストレージ", "type": "backend", "group": "publish", "icon": "aws-s3" },
+      { "id": "notifier", "label": "通知サービス", "type": "backend", "group": "publish", "icon": "azure-functions" }
+    ],
+    "edges": [
+      { "a": "contributor", "b": "content_api" },
+      { "a": "content_api", "b": "pre_checker" },
+      { "a": "pre_checker", "b": "spam_checker" },
+      { "a": "pre_checker", "b": "duplicate_checker" },
+      { "a": "spam_checker", "b": "gatekeeper" },
+      { "a": "duplicate_checker", "b": "gatekeeper" },
+      { "a": "gatekeeper", "b": "router_agent" },
+      { "a": "router_agent", "b": "text_validator" },
+      { "a": "router_agent", "b": "image_processor" },
+      { "a": "text_validator", "b": "draft_compiler" },
+      { "a": "image_processor", "b": "draft_compiler" },
+      { "a": "draft_compiler", "b": "db" },
+      { "a": "draft_compiler", "b": "reviewer" },
+      { "a": "reviewer", "b": "publish_service" },
+      { "a": "publish_service", "b": "notifier" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "コンテンツを投稿",
+        "description": "投稿者が投稿フォームからテキストまたは画像コンテンツを投稿する。差し戻された場合はここで修正して再投稿する。",
+        "mainNode": "contributor",
+        "inputNodes": [],
+        "outputNodes": ["content_api"]
+      },
+      {
+        "id": "t2",
+        "label": "事前チェックを並行実行",
+        "description": "投稿内容に対して、スパム判定と重複投稿判定を並行して開始する。",
+        "mainNode": "pre_checker",
+        "inputNodes": [],
+        "outputNodes": ["spam_checker", "duplicate_checker"]
+      },
+      {
+        "id": "t3",
+        "label": "スパム判定",
+        "description": "投稿内容がスパムでないかを判定する。",
+        "mainNode": "spam_checker",
+        "inputNodes": [],
+        "outputNodes": ["gatekeeper"]
+      },
+      {
+        "id": "t4",
+        "label": "重複投稿判定",
+        "description": "同一内容の重複投稿でないかを判定する。",
+        "mainNode": "duplicate_checker",
+        "inputNodes": [],
+        "outputNodes": ["gatekeeper"]
+      },
+      {
+        "id": "t5",
+        "label": "事前チェック結果を統合",
+        "description": "スパム判定と重複判定の両方の完了を待って結果を統合する。",
+        "mainNode": "gatekeeper",
+        "inputNodes": [],
+        "outputNodes": ["router_agent"]
+      },
+      {
+        "id": "t6",
+        "label": "種別を判定",
+        "description": "投稿内容がテキスト記事か画像投稿かを判定し、それぞれの処理系統へ振り分ける。",
+        "mainNode": "router_agent",
+        "inputNodes": [],
+        "outputNodes": []
+      },
+      {
+        "id": "t7",
+        "label": "テキスト処理",
+        "description": "テキスト記事を検証・整形する。",
+        "mainNode": "text_validator",
+        "inputNodes": [],
+        "outputNodes": ["draft_compiler"]
+      },
+      {
+        "id": "t8",
+        "label": "画像処理",
+        "description": "投稿された画像をリサイズし、メタデータを抽出する。",
+        "mainNode": "image_processor",
+        "inputNodes": [],
+        "outputNodes": ["draft_compiler"]
+      },
+      {
+        "id": "t9",
+        "label": "下書きを統合",
+        "description": "処理結果を下書きDBへ保存し、レビュー待ちにする。",
+        "mainNode": "draft_compiler",
+        "inputNodes": [],
+        "outputNodes": ["db"]
+      },
+      {
+        "id": "t10",
+        "label": "編集者レビュー",
+        "description": "編集者が下書きを確認し、公開可否を判断する。",
+        "mainNode": "reviewer",
+        "inputNodes": [],
+        "outputNodes": []
+      },
+      {
+        "id": "t11",
+        "label": "公開",
+        "description": "承認されたコンテンツを公開ストレージへ配置する。",
+        "mainNode": "publish_service",
+        "inputNodes": [],
+        "outputNodes": ["notifier"]
+      },
+      {
+        "id": "t12",
+        "label": "公開完了を通知",
+        "description": "公開が完了したことを投稿者へ通知する。",
+        "mainNode": "notifier",
+        "inputNodes": [],
+        "outputNodes": []
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3" },
+      { "from": "t2", "to": "t4" },
+      { "from": "t3", "to": "t5" },
+      { "from": "t4", "to": "t5" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7", "label": "テキスト" },
+      { "from": "t6", "to": "t8", "label": "画像" },
+      { "from": "t7", "to": "t9" },
+      { "from": "t8", "to": "t9" },
+      { "from": "t9", "to": "t10" },
+      { "from": "t10", "to": "t11", "label": "承認" },
+      { "from": "t10", "to": "t1", "label": "差し戻し" },
+      { "from": "t11", "to": "t12" }
+    ]
+  }
+}
