@@ -13,6 +13,11 @@ so it's reachable from the deployed app itself, not only from GitHub.
 
 ## LoomDocument shape
 
+The `jsonc` code fences below use `//` comments only to annotate fields
+for you, the reader. A real `LoomDocument` is strict JSON — no comments,
+no trailing commas. Strip any comments before saving or uploading a
+document; a Loom document with `//` in it will fail to parse.
+
 ```jsonc
 {
   "architecture": {
@@ -93,8 +98,15 @@ fields for branch/fork/join/loop-back:
 - 2+ incoming into the same task → join (waits for every active branch)
 - `to` pointing at an earlier task → loop-back (rendered as a dashed curve)
 
+For a decision, each labeled branch needs its own distinct `to` — two
+labels pointing at the same task collapse into one indistinguishable
+choice (whichever the user picks, the flow ends up in the same place). A
+full two-branch decision, one branch continuing forward and the other
+looping back:
+
 ```jsonc
-{ "from": "t10", "to": "t9", "label": "ビルド失敗:Dockerfile修正" }
+{ "from": "t9", "to": "t10", "label": "テスト成功:デプロイへ進む" },
+{ "from": "t9", "to": "t5", "label": "テスト失敗:実装へ差し戻し" }
 ```
 
 ## Lanes
