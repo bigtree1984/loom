@@ -6,6 +6,7 @@ import sampleDataRaw from "./sample-data/report-agent-system.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
+import { snapPositionToLane, validLaneKeysFor, HUMAN_LANE, type LaneLayoutResult } from "./graph/layout";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
 import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
@@ -19,6 +20,15 @@ import { useSampleAutoload } from "./hooks/useSampleAutoload";
 import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
 
 const SAMPLE = sampleDataRaw as unknown as LoomDocument;
+
+const EMPTY_LANE_LAYOUT: LaneLayoutResult = {
+  positions: new Map(),
+  laneOrder: [],
+  laneX: new Map(),
+  rowHeight: 0,
+  laneGap: 0,
+  nodeWidth: 0,
+};
 
 type EditorState = { kind: "node" | "task"; id: string | null } | { kind: "json" } | null;
 
@@ -73,9 +83,52 @@ function App() {
   }, [shareStatus]);
 
   const archFlow = useMemo(() => {
-    if (!loom.doc) return { nodes: [], edges: [] };
+    if (!loom.doc) return { nodes: [], edges: [], layout: EMPTY_LANE_LAYOUT, laneHeaders: [] };
     return toArchitectureFlow(loom.doc.architecture, loom.doc.flow, loom.highlightedArchNodes);
   }, [loom.doc, loom.highlightedArchNodes]);
+
+  // Swaps lane `index` with its right-hand neighbor and pins the result as
+  // an explicit architecture.laneOrder override — whatever was showing
+  // (auto-optimized or already-pinned) becomes the new baseline the user
+  // is nudging, rather than the swap getting silently recomputed away.
+  const handleSwapLanes = useCallback(
+    (index: number) => {
+      if (!loom.doc) return;
+      const order = [...archFlow.layout.laneOrder];
+      if (index < 0 || index + 1 >= order.length) return;
+      [order[index], order[index + 1]] = [order[index + 1], order[index]];
+      loom.loadDocument({
+        ...loom.doc,
+        architecture: { ...loom.doc.architecture, laneOrder: order },
+      });
+    },
+    [loom, archFlow.layout.laneOrder],
+  );
+
+  // Dropping a dragged node snaps it to the nearest lane/row instead of a
+  // freeform pixel position — group (or its absence, to fall back to the
+  // node's own type lane) and rowOrder get written back, restricted to
+  // lanes that actually make sense for this node's type (see
+  // validLaneKeysFor) so a drop can't produce a group value that silently
+  // lies about where the node visually landed.
+  const handleNodeDragEnd = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      if (!loom.doc) return;
+      const node = loom.doc.architecture.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const validLanes = validLaneKeysFor(node.type, archFlow.layout.laneOrder);
+      const { laneKey, rowOrder } = snapPositionToLane(position, validLanes, archFlow.layout.laneX, archFlow.layout.rowHeight);
+      const newGroup = laneKey === HUMAN_LANE || laneKey.startsWith("__type_") ? undefined : laneKey;
+      loom.loadDocument({
+        ...loom.doc,
+        architecture: {
+          ...loom.doc.architecture,
+          nodes: loom.doc.architecture.nodes.map((n) => (n.id === nodeId ? { ...n, group: newGroup, rowOrder } : n)),
+        },
+      });
+    },
+    [loom, archFlow.layout],
+  );
 
   const processFlow = useMemo(() => {
     if (!loom.doc) return { nodes: [], edges: [] };
@@ -129,6 +182,9 @@ function App() {
           <button onClick={handleCopyShareLink} disabled={!loom.doc}>
             共有リンクをコピー
           </button>
+          <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
+            エージェント向け仕様
+          </a>
           {(autoloadStatus || shareStatus) && (
             <span className="autoload-status">{autoloadStatus ?? shareStatus}</span>
           )}
@@ -150,6 +206,9 @@ function App() {
             <ArchitecturePanel
               nodes={archFlow.nodes}
               edges={archFlow.edges}
+              laneHeaders={archFlow.laneHeaders}
+              onSwapLanes={handleSwapLanes}
+              onNodeDragEnd={handleNodeDragEnd}
               onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
               onAddNode={() => setEditor({ kind: "node", id: null })}
             />

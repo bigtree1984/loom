@@ -1,19 +1,34 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Background, Controls, ReactFlow, useNodesState, type Edge, type Node, type NodeChange } from "@xyflow/react";
 import { LoomArchEdge } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
+import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
+import { NODE_WIDTH, type LaneHeader } from "../graph/toArchitectureFlow";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
-const nodeTypes = { loomArchNode: LoomArchNode };
+const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader };
+
+const HEADER_Y = -110;
 
 interface Props {
   nodes: Node[];
   edges: Edge[];
+  laneHeaders: LaneHeader[];
+  onSwapLanes: (index: number) => void;
+  onNodeDragEnd: (nodeId: string, position: { x: number; y: number }) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onAddNode: () => void;
 }
 
-export function ArchitecturePanel({ nodes, edges, onNodeDoubleClick, onAddNode }: Props) {
+export function ArchitecturePanel({
+  nodes,
+  edges,
+  laneHeaders,
+  onSwapLanes,
+  onNodeDragEnd,
+  onNodeDoubleClick,
+  onAddNode,
+}: Props) {
   const [rfNodes, setRfNodes, onNodesChangeBase] = useNodesState(nodes);
 
   // Only an id the user has actually dragged keeps its position across a
@@ -27,11 +42,22 @@ export function ArchitecturePanel({ nodes, edges, onNodeDoubleClick, onAddNode }
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       changes.forEach((c) => {
-        if (c.type === "position" && c.dragging) draggedIds.current.add(c.id);
+        if (c.type !== "position") return;
+        if (c.dragging) {
+          draggedIds.current.add(c.id);
+        } else if (draggedIds.current.has(c.id) && c.position) {
+          // The final change for a drag (dragging just went false) — snap
+          // it to the nearest lane/row and let the caller persist that.
+          // Un-mark it as "dragged" so the freeform pixel position it was
+          // just dropped at doesn't win over the snapped position the
+          // resulting doc update computes.
+          draggedIds.current.delete(c.id);
+          onNodeDragEnd(c.id, c.position);
+        }
       });
       onNodesChangeBase(changes);
     },
-    [onNodesChangeBase],
+    [onNodesChangeBase, onNodeDragEnd],
   );
 
   useEffect(() => {
@@ -44,6 +70,34 @@ export function ArchitecturePanel({ nodes, edges, onNodeDoubleClick, onAddNode }
     });
   }, [nodes, setRfNodes]);
 
+  // Lane headers are real React Flow nodes (not an HTML overlay) so they
+  // pan/zoom in lock-step with the lane they label, positioned above row 0.
+  // Not draggable/connectable/selectable, and rebuilt fresh every render —
+  // no drag-position bookkeeping needed for them.
+  const headerNodes: Node[] = useMemo(
+    () =>
+      laneHeaders.map((h, i) => {
+        const data: LoomLaneHeaderData = {
+          label: h.label,
+          canMoveLeft: i > 0,
+          canMoveRight: i < laneHeaders.length - 1,
+          onMoveLeft: () => onSwapLanes(i - 1),
+          onMoveRight: () => onSwapLanes(i),
+        };
+        return {
+          id: `lane-header-${h.key}`,
+          type: "loomLaneHeader",
+          position: { x: h.x, y: HEADER_Y },
+          data,
+          draggable: false,
+          selectable: false,
+          connectable: false,
+          style: { width: NODE_WIDTH },
+        };
+      }),
+    [laneHeaders, onSwapLanes],
+  );
+
   return (
     <div className="panel architecture-panel">
       <div className="panel-header">
@@ -52,12 +106,12 @@ export function ArchitecturePanel({ nodes, edges, onNodeDoubleClick, onAddNode }
       </div>
       <div className="rf-container">
         <ReactFlow
-          nodes={rfNodes}
+          nodes={[...headerNodes, ...rfNodes]}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onNodeDoubleClick={(_, node) => onNodeDoubleClick(node.id)}
+          onNodeDoubleClick={(_, node) => node.type !== "loomLaneHeader" && onNodeDoubleClick(node.id)}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           nodesDraggable

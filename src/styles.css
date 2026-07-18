@@ -21,6 +21,18 @@
   gap: 12px;
 }
 
+.agent-guide-link {
+  font-size: 12px;
+  color: var(--loom-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.agent-guide-link:hover {
+  color: var(--loom-accent);
+  text-decoration: underline;
+}
+
 .app-title {
   display: flex;
   align-items: baseline;
@@ -125,6 +137,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.loom-lane-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--loom-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.loom-lane-header-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.loom-lane-header-arrow {
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 4px;
+  flex: 0 0 auto;
 }
 
 .app-footer {

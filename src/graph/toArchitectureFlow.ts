@@ -1,14 +1,16 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
-import { computeStableOrder, layoutByLanes } from "./layout";
+import { computeStableOrder, layoutByLanes, type LaneLayoutResult } from "./layout";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
+import { truncateLabel } from "./textUtils";
 import type { ArchNodeHighlight } from "../state/useLoomState";
 import type { LoomEdgeData } from "../components/LoomArchEdge";
 import type { LoomArchNodeData } from "../components/LoomArchNode";
 
-const NODE_WIDTH = 168;
+export const NODE_WIDTH = 168;
 const NODE_HEIGHT = 64;
+const MAX_LABEL_CHARS_PER_LINE = 12;
 
 /** Dot color when a node doesn't specify `colorToken` explicitly — keeps
  * old JSON (authored before colorToken existed) showing a sensible dot
@@ -24,6 +26,31 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
 const NEUTRAL_BORDER = "var(--loom-border)";
 const NEUTRAL_EDGE = "#B4B2A9";
 
+const TYPE_LABEL: Record<ArchNodeType, string> = {
+  human: "人間",
+  frontend: "フロントエンド",
+  backend: "バックエンド",
+  agent: "エージェント",
+  storage: "データ",
+};
+
+/** Human-readable label for a lane key — a declared group's label, or a
+ * generated one for the human/type-fallback lanes (see LaneLayoutResult). */
+function laneLabelFor(key: string, groups: LoomDocument["architecture"]["groups"]): string {
+  if (key === "__human__") return TYPE_LABEL.human;
+  if (key.startsWith("__type_")) {
+    const type = key.slice("__type_".length) as ArchNodeType;
+    return TYPE_LABEL[type] ?? key;
+  }
+  return groups?.find((g) => g.id === key)?.label ?? key;
+}
+
+export interface LaneHeader {
+  key: string;
+  label: string;
+  x: number;
+}
+
 /** If both ends of an edge belong to the same route (one is that route's
  * main node, the other its io node), the edge is "live" for that route. */
 function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight | undefined): number | null {
@@ -37,7 +64,7 @@ export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   flow: LoomDocument["flow"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
-): { nodes: Node[]; edges: Edge[] } {
+): { nodes: Node[]; edges: Edge[]; layout: LaneLayoutResult; laneHeaders: LaneHeader[] } {
   // Each pipeline task's step order (from the flow panel's own ranking)
   // becomes the definite sort key for whichever architecture node it
   // runs on — the one node in each lane's ordering that isn't a guess.
@@ -53,13 +80,15 @@ export function toArchitectureFlow(
     if (existing === undefined || ord < existing) taskOrderByMainNode.set(t.mainNode, ord);
   });
 
-  const positions = layoutByLanes(
-    architecture.nodes.map((n) => ({ id: n.id, type: n.type, group: n.group })),
+  const layout = layoutByLanes(
+    architecture.nodes.map((n) => ({ id: n.id, type: n.type, group: n.group, rowOrder: n.rowOrder })),
     architecture.edges,
     (architecture.groups ?? []).map((g) => g.id),
     taskOrderByMainNode,
     { width: NODE_WIDTH, height: NODE_HEIGHT },
+    architecture.laneOrder,
   );
+  const positions = layout.positions;
 
   const nodes: Node[] = architecture.nodes.map((n) => {
     const highlight = highlightedArchNodes.get(n.id);
@@ -67,7 +96,8 @@ export function toArchitectureFlow(
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;
     const colorToken = n.colorToken ?? COLOR_TOKEN_BY_TYPE[n.type];
     const data: LoomArchNodeData = {
-      label: n.label,
+      label: truncateLabel(n.label, MAX_LABEL_CHARS_PER_LINE),
+      fullLabel: n.label,
       dotColor: `var(--loom-dot-${colorToken.slice("color_".length)})`,
       iconUrl: iconUrlFor(n.icon),
     };
@@ -113,5 +143,11 @@ export function toArchitectureFlow(
     };
   });
 
-  return { nodes, edges };
+  const laneHeaders: LaneHeader[] = layout.laneOrder.map((key) => ({
+    key,
+    label: laneLabelFor(key, architecture.groups),
+    x: layout.laneX.get(key) ?? 0,
+  }));
+
+  return { nodes, edges, layout, laneHeaders };
 }

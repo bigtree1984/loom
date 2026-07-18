@@ -13,6 +13,15 @@ export interface ArchNode {
   colorToken?: ArchNodeColorToken;
   /** Key into the icon registry (src/assets/icons/{icon}.svg), e.g. "aws-s3". */
   icon?: string;
+  /**
+   * Pins this node to a specific row (0 = top) within its lane, instead of
+   * the automatic ordering (pipeline step order, or the average position
+   * of whichever neighbors already have one). Other nodes in the same
+   * lane without a rowOrder fill the remaining rows around it — this
+   * can't reintroduce overlaps because rows are still discrete slots, not
+   * free pixel coordinates.
+   */
+  rowOrder?: number;
 }
 
 /**
@@ -65,6 +74,17 @@ export interface LoomDocument {
     nodes: ArchNode[];
     edges: ArchEdge[];
     groups?: ArchGroup[];
+    /**
+     * Explicit left-to-right lane order, as an escape hatch over the
+     * automatic ordering (which minimizes edges that jump across
+     * multiple lanes). Entries are lane keys: a group id for a grouped
+     * lane, `"__human__"` for the human lane, or `"__type_{type}"`
+     * (e.g. `"__type_agent"`) for the fallback lane of ungrouped nodes
+     * of that type. Lanes present in the diagram but missing from this
+     * list are appended after it, so a partial override is safe.
+     * Normally written by the lane-swap UI, not hand-authored.
+     */
+    laneOrder?: string[];
   };
   flow: {
     tasks: Task[];
