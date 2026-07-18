@@ -16,7 +16,11 @@ export interface LoomLaneHeaderData extends Record<string, unknown> {
 export function LoomLaneHeader({ data }: NodeProps) {
   const d = data as LoomLaneHeaderData;
   return (
-    <div className="loom-lane-header">
+    // nodrag/nopan: without them, React Flow's own pointerdown handling
+    // (drag-detection on the node, pane panning) swallows the mouse event
+    // before a real click ever reaches the buttons — only synthetic
+    // .click() calls worked without this, actual mouse clicks didn't.
+    <div className="loom-lane-header nodrag nopan">
       <button
         className="loom-lane-header-arrow"
         disabled={!d.canMoveLeft}
