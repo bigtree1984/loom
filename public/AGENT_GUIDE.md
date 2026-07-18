@@ -84,6 +84,11 @@ land in that lane — otherwise it falls back to a lane keyed by its `type`.
 }
 ```
 
+`inputNodes` and `outputNodes` are required — if a task has none, write
+`[]` rather than omitting the field. (In practice a missing field is
+tolerated too: the app fills it in as `[]`, but don't rely on that when
+hand- or LLM-authoring a document.)
+
 A task is a human gate purely because its `mainNode` resolves to an
 architecture node with `type: "human"` — there's no separate flag.
 

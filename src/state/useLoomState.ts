@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Connection, LoomDocument, Task } from "../types";
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
+import { normalizeLoomDocument } from "../graph/normalizeDocument";
 
 export interface ArchNodeHighlight {
   role: "main" | "io";
@@ -26,7 +27,7 @@ interface PositionSnapshot {
 const AUTO_PLAY_INTERVAL_MS = 1800;
 
 export function useLoomState(initialDoc: LoomDocument | null) {
-  const [doc, setDoc] = useState<LoomDocument | null>(initialDoc);
+  const [doc, setDoc] = useState<LoomDocument | null>(initialDoc ? normalizeLoomDocument(initialDoc) : null);
   const [position, setPosition] = useState<string[]>([]);
   const [joinArrivals, setJoinArrivals] = useState<JoinArrivals>({});
   const [history, setHistory] = useState<PositionSnapshot[]>([]);
@@ -139,7 +140,8 @@ export function useLoomState(initialDoc: LoomDocument | null) {
   }, []);
 
   const loadDocument = useCallback(
-    (next: LoomDocument) => {
+    (raw: LoomDocument) => {
+      const next = normalizeLoomDocument(raw);
       if (doc) {
         setDocHistory((h) => [...h, doc]);
       }
@@ -177,7 +179,8 @@ export function useLoomState(initialDoc: LoomDocument | null) {
 
   useEffect(() => {
     if (initialDoc) {
-      resetTo(findRootId(initialDoc.flow.tasks.map((t) => t.id), initialDoc.flow.connections));
+      const normalized = normalizeLoomDocument(initialDoc);
+      resetTo(findRootId(normalized.flow.tasks.map((t) => t.id), normalized.flow.connections));
     }
     // Only seed once on mount; loadDocument handles later swaps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
