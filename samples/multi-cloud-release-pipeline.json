@@ -1,0 +1,161 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "dev", "label": "開発/CI" },
+      { "id": "app", "label": "アプリケーション" },
+      { "id": "aws", "label": "AWS" },
+      { "id": "gcp", "label": "分析基盤(GCP)" },
+      { "id": "azure", "label": "運用(Azure)" }
+    ],
+    "nodes": [
+      { "id": "dev_user", "label": "開発者", "type": "human" },
+      { "id": "github", "label": "GitHub", "type": "backend", "group": "dev", "icon": "github" },
+      { "id": "docker", "label": "Dockerビルド", "type": "backend", "group": "dev", "icon": "docker" },
+      { "id": "react", "label": "React SPA", "type": "frontend", "group": "app", "icon": "react" },
+      { "id": "flask", "label": "Flask API", "type": "backend", "group": "app", "icon": "flask" },
+      { "id": "postgresql", "label": "PostgreSQL", "type": "storage", "group": "app", "icon": "postgresql" },
+      { "id": "aws_cloudfront", "label": "CloudFront", "type": "frontend", "group": "aws", "icon": "aws-cloudfront" },
+      { "id": "aws_ec2", "label": "EC2", "type": "backend", "group": "aws", "icon": "aws-ec2" },
+      { "id": "aws_s3", "label": "S3\n(成果物)", "type": "storage", "group": "aws", "icon": "aws-s3" },
+      { "id": "aws_api_gateway", "label": "API Gateway", "type": "backend", "group": "aws", "icon": "aws-api-gateway" },
+      { "id": "aws_lambda", "label": "Lambda", "type": "backend", "group": "aws", "icon": "aws-lambda" },
+      { "id": "aws_dynamodb", "label": "DynamoDB", "type": "storage", "group": "aws", "icon": "aws-dynamodb" },
+      { "id": "gcp_storage", "label": "Cloud Storage", "type": "storage", "group": "gcp", "icon": "gcp-cloud-storage" },
+      { "id": "gcp_bigquery", "label": "BigQuery", "type": "storage", "group": "gcp", "icon": "gcp-bigquery" },
+      { "id": "azure_functions", "label": "Azure Functions", "type": "backend", "group": "azure", "icon": "azure-functions" },
+      { "id": "azure_app_service", "label": "管理画面\n(App Service)", "type": "backend", "group": "azure", "icon": "azure-app-service" },
+      { "id": "azure_storage", "label": "Storage Account\n(ログ保管)", "type": "storage", "group": "azure", "icon": "azure-storage-account" }
+    ],
+    "edges": [
+      { "a": "dev_user", "b": "github" },
+      { "a": "github", "b": "docker" },
+      { "a": "docker", "b": "react" },
+      { "a": "docker", "b": "aws_ec2" },
+      { "a": "docker", "b": "aws_s3" },
+      { "a": "docker", "b": "aws_api_gateway" },
+      { "a": "react", "b": "aws_cloudfront" },
+      { "a": "aws_api_gateway", "b": "aws_lambda" },
+      { "a": "aws_lambda", "b": "aws_dynamodb" },
+      { "a": "aws_ec2", "b": "flask" },
+      { "a": "flask", "b": "postgresql" },
+      { "a": "postgresql", "b": "gcp_storage" },
+      { "a": "gcp_storage", "b": "gcp_bigquery" },
+      { "a": "gcp_bigquery", "b": "azure_functions" },
+      { "a": "azure_functions", "b": "azure_app_service" },
+      { "a": "azure_functions", "b": "azure_storage" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "コードをプッシュ",
+        "description": "開発者がGitHubリポジトリへ変更をプッシュする。",
+        "mainNode": "dev_user",
+        "inputNodes": [],
+        "outputNodes": ["github"]
+      },
+      {
+        "id": "t2",
+        "label": "CI/CDビルド開始",
+        "description": "GitHubのCIがDockerイメージのビルドを開始する。",
+        "mainNode": "github",
+        "inputNodes": [],
+        "outputNodes": ["docker"]
+      },
+      {
+        "id": "t3",
+        "label": "マルチターゲットへデプロイ",
+        "description": "ビルドしたコンテナをフロントエンド・APIサーバー・成果物ストア・API Gatewayへ同時にデプロイする。",
+        "mainNode": "docker",
+        "inputNodes": [],
+        "outputNodes": ["react", "aws_ec2", "aws_s3", "aws_api_gateway"]
+      },
+      {
+        "id": "t4",
+        "label": "フロントエンド公開",
+        "description": "React SPAをCloudFront経由で配信する。",
+        "mainNode": "react",
+        "inputNodes": [],
+        "outputNodes": ["aws_cloudfront"]
+      },
+      {
+        "id": "t5",
+        "label": "APIサーバー起動",
+        "description": "EC2上でFlask APIサーバーが起動する。",
+        "mainNode": "aws_ec2",
+        "inputNodes": [],
+        "outputNodes": ["flask"]
+      },
+      {
+        "id": "t6",
+        "label": "Webhookリクエスト受付",
+        "description": "API Gateway経由でLambda関数を呼び出す。",
+        "mainNode": "aws_api_gateway",
+        "inputNodes": [],
+        "outputNodes": ["aws_lambda"]
+      },
+      {
+        "id": "t7",
+        "label": "Webhookイベント処理",
+        "description": "LambdaがイベントをDynamoDBに記録する。",
+        "mainNode": "aws_lambda",
+        "inputNodes": [],
+        "outputNodes": ["aws_dynamodb"]
+      },
+      {
+        "id": "t8",
+        "label": "データベースアクセス",
+        "description": "Flask APIがPostgreSQLへ読み書きする。",
+        "mainNode": "flask",
+        "inputNodes": [],
+        "outputNodes": ["postgresql"]
+      },
+      {
+        "id": "t9",
+        "label": "分析基盤へ夜間エクスポート",
+        "description": "PostgreSQLのデータを夜間バッチでCloud Storageへエクスポートする。",
+        "mainNode": "postgresql",
+        "inputNodes": [],
+        "outputNodes": ["gcp_storage"]
+      },
+      {
+        "id": "t10",
+        "label": "BigQueryへロード",
+        "description": "Cloud Storage上のデータをBigQueryへロードする。",
+        "mainNode": "gcp_storage",
+        "inputNodes": [],
+        "outputNodes": ["gcp_bigquery"]
+      },
+      {
+        "id": "t11",
+        "label": "異常検知",
+        "description": "BigQueryのクエリ結果をもとにAzure Functionsが異常を検知する。",
+        "mainNode": "gcp_bigquery",
+        "inputNodes": [],
+        "outputNodes": ["azure_functions"]
+      },
+      {
+        "id": "t12",
+        "label": "通知とログ保管",
+        "description": "管理画面への通知とログのアーカイブを同時に行う。",
+        "mainNode": "azure_functions",
+        "inputNodes": [],
+        "outputNodes": ["azure_app_service", "azure_storage"]
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3" },
+      { "from": "t3", "to": "t4" },
+      { "from": "t3", "to": "t5" },
+      { "from": "t3", "to": "t6" },
+      { "from": "t6", "to": "t7" },
+      { "from": "t5", "to": "t8" },
+      { "from": "t8", "to": "t9" },
+      { "from": "t9", "to": "t10" },
+      { "from": "t10", "to": "t11" },
+      { "from": "t11", "to": "t12" }
+    ]
+  }
+}
