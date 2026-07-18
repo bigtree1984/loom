@@ -92,7 +92,12 @@ export function ArchitecturePanel({
           draggable: false,
           selectable: false,
           connectable: false,
-          style: { width: NODE_WIDTH },
+          // React Flow disables pointer-events on a node's wrapper entirely
+          // when it's non-draggable/non-selectable/non-connectable with no
+          // node-level handlers — correct for a purely decorative node, but
+          // this one has real interactive buttons inside it, so it must be
+          // forced back on or every click passes through to the pane below.
+          style: { width: NODE_WIDTH, pointerEvents: "auto" },
         };
       }),
     [laneHeaders, onSwapLanes],
