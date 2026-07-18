@@ -167,10 +167,161 @@ export interface LaneNode {
   id: string;
   type: ArchNodeType;
   group?: string;
+  /** Pins this node's row within its lane — see ArchNode.rowOrder. */
+  rowOrder?: number;
 }
 
 const TYPE_FALLBACK_ORDER: ArchNodeType[] = ["frontend", "backend", "agent", "storage"];
-const HUMAN_LANE = "__human__";
+export const HUMAN_LANE = "__human__";
+
+/** Beyond this many lanes, exhaustive permutation search (n!) is dropped
+ * for a greedy-construction + 2-opt local search instead. 8! = 40320, well
+ * within a single render's budget; realistic lane counts rarely exceed
+ * 5-6 anyway. */
+const EXACT_PERMUTATION_LANE_LIMIT = 8;
+
+/** Sum, over every pair of lanes, of (edges between them) * (how many
+ * lane-slots apart they are). Edges between adjacent lanes are free-ish;
+ * edges that have to jump over several lanes cost more — minimizing this
+ * is what pulls heavily-connected lanes next to each other. */
+function laneOrderCost(order: string[], weight: Map<string, Map<string, number>>): number {
+  const indexOf = new Map(order.map((key, i) => [key, i]));
+  let cost = 0;
+  weight.forEach((inner, a) => {
+    inner.forEach((w, b) => {
+      if (a >= b) return; // each unordered pair counted once (weight is stored symmetrically)
+      const ia = indexOf.get(a);
+      const ib = indexOf.get(b);
+      if (ia === undefined || ib === undefined) return;
+      cost += w * Math.abs(ia - ib);
+    });
+  });
+  return cost;
+}
+
+function buildLaneWeights(
+  edges: { a: string; b: string }[],
+  laneKeyOfId: Map<string, string>,
+): Map<string, Map<string, number>> {
+  const weight = new Map<string, Map<string, number>>();
+  const add = (a: string, b: string) => {
+    const inner = weight.get(a) ?? new Map<string, number>();
+    inner.set(b, (inner.get(b) ?? 0) + 1);
+    weight.set(a, inner);
+  };
+  edges.forEach((e) => {
+    const la = laneKeyOfId.get(e.a);
+    const lb = laneKeyOfId.get(e.b);
+    if (!la || !lb || la === lb) return;
+    add(la, lb);
+    add(lb, la);
+  });
+  return weight;
+}
+
+function allPermutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  const result: T[][] = [];
+  items.forEach((item, i) => {
+    const rest = [...items.slice(0, i), ...items.slice(i + 1)];
+    allPermutations(rest).forEach((p) => result.push([item, ...p]));
+  });
+  return result;
+}
+
+function exactMinLaneOrder(lanes: string[], weight: Map<string, Map<string, number>>): string[] {
+  let best = lanes;
+  let bestCost = Infinity;
+  allPermutations(lanes).forEach((perm) => {
+    const cost = laneOrderCost(perm, weight);
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = perm;
+    }
+  });
+  return best;
+}
+
+/** Greedy construction (insert each remaining lane wherever it's
+ * cheapest) followed by 2-opt swaps until no swap improves further —
+ * doesn't guarantee the true optimum like exactMinLaneOrder, but scales
+ * to lane counts where n! stops being reasonable. */
+function heuristicMinLaneOrder(lanes: string[], weight: Map<string, Map<string, number>>): string[] {
+  if (lanes.length <= 1) return lanes;
+  const remaining = [...lanes];
+  let order = [remaining.shift()!];
+  while (remaining.length > 0) {
+    let bestPos = 0;
+    let bestCost = Infinity;
+    remaining.forEach((lane, i) => {
+      const cost = laneOrderCost([...order, lane], weight);
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestPos = i;
+      }
+    });
+    order = [...order, remaining[bestPos]];
+    remaining.splice(bestPos, 1);
+  }
+
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < order.length; i++) {
+      for (let j = i + 1; j < order.length; j++) {
+        const swapped = [...order];
+        [swapped[i], swapped[j]] = [swapped[j], swapped[i]];
+        if (laneOrderCost(swapped, weight) < laneOrderCost(order, weight)) {
+          order = swapped;
+          improved = true;
+        }
+      }
+    }
+  }
+  return order;
+}
+
+/**
+ * Decides the left-to-right lane order. An explicit `architecture.laneOrder`
+ * always wins (author/UI override — see the lane-swap header buttons);
+ * otherwise it's chosen automatically to minimize edges that have to jump
+ * across multiple lanes (a small Minimum Linear Arrangement over lanes,
+ * not individual nodes — there are only ever a handful of lanes, so this
+ * stays cheap even though MinLA is NP-hard in general).
+ */
+export function optimizeLaneOrder(
+  presentLanes: string[],
+  edges: { a: string; b: string }[],
+  laneKeyOfId: Map<string, string>,
+  explicitOrder?: string[],
+): string[] {
+  if (explicitOrder && explicitOrder.length > 0) {
+    const present = new Set(presentLanes);
+    const knownFirst = explicitOrder.filter((key) => present.has(key));
+    const knownSet = new Set(knownFirst);
+    const extra = presentLanes.filter((key) => !knownSet.has(key));
+    return [...knownFirst, ...extra];
+  }
+  if (presentLanes.length <= 1) return presentLanes;
+  const weight = buildLaneWeights(edges, laneKeyOfId);
+  return presentLanes.length <= EXACT_PERMUTATION_LANE_LIMIT
+    ? exactMinLaneOrder(presentLanes, weight)
+    : heuristicMinLaneOrder(presentLanes, weight);
+}
+
+export interface LaneLayoutResult {
+  positions: Map<string, { x: number; y: number }>;
+  /** Final resolved lane order (left to right) — same keys as ArchNode.group
+   * plus the special "__human__" / "__type_{type}" ones, in display order. */
+  laneOrder: string[];
+  /** x coordinate of each lane, keyed the same way as laneOrder. */
+  laneX: Map<string, number>;
+  /** Vertical spacing between rows (node height + gap) — for snapping a
+   * dragged node's y position to the nearest row index. */
+  rowHeight: number;
+  laneGap: number;
+  nodeWidth: number;
+}
 
 /**
  * Architecture layout as columns ("lanes") instead of dagre-ranked
@@ -194,7 +345,8 @@ export function layoutByLanes(
   groupOrder: string[],
   taskOrderByNode: Map<string, number>,
   options: { width: number; height: number; laneGap?: number; rowGap?: number },
-): Map<string, { x: number; y: number }> {
+  explicitLaneOrder?: string[],
+): LaneLayoutResult {
   const { width, height } = options;
   const laneGap = options.laneGap ?? 96;
   const rowGap = options.rowGap ?? 24;
@@ -202,32 +354,37 @@ export function layoutByLanes(
   // human is pulled into its own dedicated lane unconditionally — it's
   // the actor/trigger, not part of any pipeline-stage grouping, and this
   // is specifically what keeps it from ever colliding with a same-rank
-  // pipeline node the way it used to under dagre.
+  // pipeline node the way it used to under dagre. Its left-to-right
+  // *position* is still subject to the same optimization as any other
+  // lane, though — nothing pins it to an edge anymore.
   const laneKeyOf = (n: LaneNode) => (n.type === "human" ? HUMAN_LANE : (n.group ?? `__type_${n.type}`));
 
   // Nodes without an explicit group still need a predictable lane instead
   // of crashing or bunching at the origin — bucket them by type, in a
-  // fixed canonical order, appended after the JSON's declared groups.
+  // fixed canonical order.
   const typeFallbacksInUse = TYPE_FALLBACK_ORDER.map((t) => `__type_${t}`).filter((key) =>
     nodes.some((n) => laneKeyOf(n) === key),
   );
-  const laneOrder = [HUMAN_LANE, ...groupOrder, ...typeFallbacksInUse];
-  const laneIndex = new Map(laneOrder.map((key, i) => [key, i]));
+  const humanLaneInUse = nodes.some((n) => n.type === "human") ? [HUMAN_LANE] : [];
+  const declaredGroupsInUse = groupOrder.filter((g) => nodes.some((n) => laneKeyOf(n) === g));
+  // Seed order (only used to break ties deterministically, and as the
+  // starting point for the heuristic search) — actual position is decided
+  // by optimizeLaneOrder below.
+  const seedOrder = [...humanLaneInUse, ...declaredGroupsInUse, ...typeFallbacksInUse];
 
   const byLane = new Map<string, LaneNode[]>();
+  const laneKeyOfId = new Map<string, string>();
   nodes.forEach((n) => {
     const key = laneKeyOf(n);
-    if (!laneIndex.has(key)) {
-      // A group id referenced on a node but missing from
-      // architecture.groups — give it its own trailing lane rather than
-      // dropping the node.
-      laneIndex.set(key, laneOrder.length);
-      laneOrder.push(key);
-    }
+    laneKeyOfId.set(n.id, key);
+    if (!seedOrder.includes(key)) seedOrder.push(key); // a group id used on a node but missing from architecture.groups
     const list = byLane.get(key);
     if (list) list.push(n);
     else byLane.set(key, [n]);
   });
+
+  const finalLaneOrder = optimizeLaneOrder(seedOrder, edges, laneKeyOfId, explicitLaneOrder);
+  const laneIndex = new Map(finalLaneOrder.map((key, i) => [key, i]));
 
   const neighborsOf = new Map<string, string[]>();
   edges.forEach((e) => {
@@ -239,13 +396,18 @@ export function layoutByLanes(
     else neighborsOf.set(e.b, [e.a]);
   });
   const declarationIndex = new Map(nodes.map((n, i) => [n.id, i]));
+  const rowOrderById = new Map(nodes.filter((n) => n.rowOrder !== undefined).map((n) => [n.id, n.rowOrder!]));
 
-  // Definite order (this node is where some pipeline step actually runs)
-  // wins; otherwise average the order of whichever neighbors already have
-  // one (e.g. an AI service used by several scripts settles near their
-  // midpoint); nodes with no resolvable neighbor at all still sort
-  // deterministically, just last.
+  // A manually-pinned rowOrder wins outright (same numeric scale as the
+  // step-order below, so "put this at row 0" and "this happens to be the
+  // first task" sort the same way); then definite order (this node is
+  // where some pipeline step actually runs); otherwise average the order
+  // of whichever neighbors already have one (e.g. an AI service used by
+  // several scripts settles near their midpoint); nodes with no
+  // resolvable neighbor at all still sort deterministically, just last.
   const sortKeyOf = (id: string): number => {
+    const pinned = rowOrderById.get(id);
+    if (pinned !== undefined) return pinned;
     const definite = taskOrderByNode.get(id);
     if (definite !== undefined) return definite;
     const neighborOrders = (neighborsOf.get(id) ?? [])
@@ -281,5 +443,54 @@ export function layoutByLanes(
     });
   });
 
-  return positions;
+  const laneX = new Map(finalLaneOrder.map((key, i) => [key, i * (width + laneGap)]));
+
+  return {
+    positions,
+    laneOrder: finalLaneOrder,
+    laneX,
+    rowHeight: height + rowGap,
+    laneGap,
+    nodeWidth: width,
+  };
+}
+
+/** Which lane keys a node of this type could validly land in when dropped
+ * from a drag: any declared group lane (open to all types), its own
+ * type-fallback lane (`"__type_{type}"`), and the human lane only if it
+ * actually is the human node — dropping a non-human node "into" the human
+ * lane, or a storage node into the agent fallback lane, would otherwise
+ * produce a group value that doesn't reproduce where it visually landed. */
+export function validLaneKeysFor(nodeType: ArchNodeType, allLaneKeys: string[]): string[] {
+  return allLaneKeys.filter((key) => {
+    if (key === HUMAN_LANE) return nodeType === "human";
+    if (key.startsWith("__type_")) return key === `__type_${nodeType}`;
+    return true;
+  });
+}
+
+/**
+ * Nearest lane (by x) and row (by y, rounded to the row-height grid) for a
+ * dropped node — the discrete "grid" a drag snaps to, so a manual nudge
+ * can't produce a freeform pixel position that would fight the
+ * automatic layout's overlap-free guarantee.
+ */
+export function snapPositionToLane(
+  position: { x: number; y: number },
+  laneOrder: string[],
+  laneX: Map<string, number>,
+  rowHeight: number,
+): { laneKey: string; rowOrder: number } {
+  let bestLane = laneOrder[0] ?? "";
+  let bestDist = Infinity;
+  laneOrder.forEach((key) => {
+    const x = laneX.get(key) ?? 0;
+    const dist = Math.abs(x - position.x);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestLane = key;
+    }
+  });
+  const rowOrder = rowHeight > 0 ? Math.max(0, Math.round(position.y / rowHeight)) : 0;
+  return { laneKey: bestLane, rowOrder };
 }

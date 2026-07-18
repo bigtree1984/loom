@@ -3,9 +3,11 @@ import type { ArchNode, LoomDocument } from "../types";
 import { layoutWithDagre } from "./layout";
 import { findBackEdgeKeys } from "./graphUtils";
 import { routeColorFor } from "./routeColors";
+import { truncateLabel } from "./textUtils";
 
 const NODE_WIDTH = 176;
 const NODE_HEIGHT = 52;
+const MAX_LABEL_CHARS = 16;
 
 const NEUTRAL = { bg: "#F1EFE8", border: "#B4B2A9", text: "#5F5E5A" };
 const NEUTRAL_EDGE = "#B4B2A9";
@@ -72,7 +74,7 @@ export function toProcessFlow(
     return {
       id: t.id,
       position: positions.get(t.id) ?? { x: 0, y: 0 },
-      data: { label: isHumanGate ? `${t.label}(人間)` : t.label },
+      data: { label: truncateLabel(isHumanGate ? `${t.label}(人間)` : t.label, MAX_LABEL_CHARS) },
       className: "loom-task-clickable",
       style: {
         width: NODE_WIDTH,
