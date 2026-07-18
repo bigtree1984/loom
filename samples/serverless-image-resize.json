@@ -1,0 +1,98 @@
+{
+  "architecture": {
+    "groups": [
+      { "id": "edge", "label": "配信(CDN)" },
+      { "id": "api", "label": "API/コンピュート" },
+      { "id": "storage", "label": "データストア" }
+    ],
+    "nodes": [
+      { "id": "user", "label": "利用者", "type": "human" },
+      { "id": "cloudfront", "label": "CloudFront", "type": "frontend", "group": "edge", "icon": "aws-cloudfront" },
+      { "id": "api_gateway", "label": "API Gateway", "type": "backend", "group": "api", "icon": "aws-api-gateway" },
+      { "id": "lambda_upload", "label": "Lambda\n(アップロード処理)", "type": "backend", "group": "api", "icon": "aws-lambda" },
+      { "id": "lambda_resize", "label": "Lambda\n(リサイズ処理)", "type": "backend", "group": "api", "icon": "aws-lambda" },
+      { "id": "s3_original", "label": "S3\n(元画像)", "type": "storage", "group": "storage", "icon": "aws-s3" },
+      { "id": "s3_resized", "label": "S3\n(リサイズ済み)", "type": "storage", "group": "storage", "icon": "aws-s3" },
+      { "id": "dynamodb", "label": "DynamoDB\n(メタデータ)", "type": "storage", "group": "storage", "icon": "aws-dynamodb" }
+    ],
+    "edges": [
+      { "a": "user", "b": "cloudfront", "label": "アップロード" },
+      { "a": "cloudfront", "b": "api_gateway", "label": "APIリクエスト" },
+      { "a": "api_gateway", "b": "lambda_upload", "label": "起動" },
+      { "a": "lambda_upload", "b": "s3_original", "label": "元画像保存" },
+      { "a": "lambda_upload", "b": "dynamodb", "label": "メタデータ記録" },
+      { "a": "s3_original", "b": "lambda_resize", "label": "S3イベントトリガー" },
+      { "a": "lambda_resize", "b": "s3_resized", "label": "リサイズ画像保存" },
+      { "a": "lambda_resize", "b": "dynamodb", "label": "ステータス更新" },
+      { "a": "dynamodb", "b": "cloudfront", "label": "配信準備完了" }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "画像アップロード開始",
+        "description": "利用者がブラウザから画像をアップロードする。",
+        "mainNode": "user",
+        "inputNodes": [],
+        "outputNodes": ["cloudfront"]
+      },
+      {
+        "id": "t2",
+        "label": "CDN経由でAPI転送",
+        "description": "CloudFrontがオリジンのAPI Gatewayへリクエストを転送する。",
+        "mainNode": "cloudfront",
+        "inputNodes": [],
+        "outputNodes": ["api_gateway"]
+      },
+      {
+        "id": "t3",
+        "label": "アップロード処理Lambda起動",
+        "description": "API GatewayがLambda関数を呼び出す。",
+        "mainNode": "api_gateway",
+        "inputNodes": [],
+        "outputNodes": ["lambda_upload"]
+      },
+      {
+        "id": "t4",
+        "label": "元画像保存とメタデータ記録",
+        "description": "受け取った画像をS3に保存し、ファイル情報をDynamoDBに記録する。",
+        "mainNode": "lambda_upload",
+        "inputNodes": [],
+        "outputNodes": ["s3_original", "dynamodb"]
+      },
+      {
+        "id": "t5",
+        "label": "リサイズ処理を起動",
+        "description": "S3への保存イベントをトリガーに、リサイズ用Lambdaが自動起動する。",
+        "mainNode": "lambda_resize",
+        "inputNodes": ["s3_original"],
+        "outputNodes": ["s3_resized"]
+      },
+      {
+        "id": "t6",
+        "label": "ステータスを更新",
+        "description": "リサイズ完了をDynamoDBに記録する。",
+        "mainNode": "lambda_resize",
+        "inputNodes": ["s3_resized"],
+        "outputNodes": ["dynamodb"]
+      },
+      {
+        "id": "t7",
+        "label": "配信準備完了",
+        "description": "CloudFront経由でリサイズ済み画像を配信できる状態になる。",
+        "mainNode": "cloudfront",
+        "inputNodes": ["dynamodb"],
+        "outputNodes": []
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" },
+      { "from": "t2", "to": "t3" },
+      { "from": "t3", "to": "t4" },
+      { "from": "t4", "to": "t5" },
+      { "from": "t5", "to": "t6" },
+      { "from": "t6", "to": "t7" }
+    ]
+  }
+}
