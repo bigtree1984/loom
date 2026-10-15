@@ -1,4 +1,4 @@
-import type { Edge, Node } from "@xyflow/react";
+import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
 import { computeStableOrder, layoutByLanes, type LaneLayoutResult } from "./layout";
 import { routeColorFor } from "./routeColors";
@@ -25,6 +25,8 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
 };
 
 const NEUTRAL_BORDER = "var(--loom-border)";
+// Literal hex on purpose: React Flow renders markers into <defs> and needs a
+// concrete color string (CSS var() is not reliably resolved there).
 const NEUTRAL_EDGE = "#B4B2A9";
 
 const TYPE_LABEL: Record<ArchNodeType, string> = {
@@ -159,6 +161,8 @@ export function toArchitectureFlow(
       label: e.label,
       data: edgeData,
       style: { stroke: color, strokeWidth: active ? 2 : 1 },
+      markerEnd: { type: MarkerType.ArrowClosed, color },
+      ...(e.bidirectional ? { markerStart: { type: MarkerType.ArrowClosed, color } } : {}),
       labelStyle: { fontSize: 11, fill: "var(--loom-text-secondary)" },
     };
   });

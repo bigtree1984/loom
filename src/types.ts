@@ -32,14 +32,16 @@ export interface ArchNode {
 }
 
 /**
- * Undirected — `a`/`b` carries no visual meaning (no arrowheads), it's
- * only used as a layout hint for ranking the architecture diagram
- * left-to-right.
+ * Directed a -> b: an arrowhead is drawn at `b`. Set `bidirectional` to
+ * also draw one at `a`. Direction also serves as a layout hint for
+ * ranking the architecture diagram left-to-right.
  */
 export interface ArchEdge {
   a: string;
   b: string;
   label?: string;
+  /** Also draw an arrowhead at `a` (two-way relationship). */
+  bidirectional?: boolean;
 }
 
 export interface ArchGroup {
