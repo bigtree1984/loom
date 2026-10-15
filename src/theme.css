@@ -1,0 +1,78 @@
+/*
+ * Loom color tokens (light + dark). The only file that holds color values.
+ * Source: Bigtree Lab design tokens, transcribed from
+ *   0016_office_3_apps/public/bigtree/design/tokens.json (`colors`)
+ *   Figma fileKey 0MH0fNiTtcID0nw201lJkx, collection "office-theme",
+ *   mode "Bigtree Lab", exported 2026-09-19.
+ * Dark mode is derived by Loom (docs/DESIGN_v2.md 1.2), not part of Bigtree.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap");
+
+:root {
+  /* Bigtree Lab palette */
+  --bt-dk1: #1f4437;
+  --bt-lt1: #ffffff;
+  --bt-dk2: #66776f;
+  --bt-lt2: #f7f4ee;
+  --bt-accent1: #2f6b55;
+  --bt-accent2: #ffcb68;
+  --bt-accent3: #66776f;
+  --bt-accent4: #94a09a;
+  --bt-accent5: #c2c9c5;
+  --bt-accent6: #e2773a;
+
+  /* Accents as used by Loom (identity in light; lightened in dark) */
+  --loom-c1: var(--bt-accent1);
+  --loom-c2: var(--bt-accent2);
+  --loom-c3: var(--bt-accent3);
+  --loom-c4: var(--bt-accent4);
+  --loom-c6: var(--bt-accent6);
+  --loom-ink: var(--bt-dk1); /* dark text on strong fills (e.g. yellow) */
+  --loom-on-accent: var(--bt-lt1); /* text on dark/medium fills */
+
+  --loom-bg: var(--bt-lt1);
+  --loom-panel-bg: var(--bt-lt2);
+  --loom-border: var(--bt-accent5);
+  --loom-text-primary: var(--bt-dk1);
+  --loom-text-secondary: var(--bt-dk2);
+  --loom-accent: var(--loom-c1);
+  --loom-danger: var(--loom-c6);
+
+  /* Architecture-node category dots */
+  --loom-dot-1: var(--bt-accent1);
+  --loom-dot-2: var(--bt-accent2);
+  --loom-dot-3: var(--bt-accent6);
+  --loom-dot-4: var(--bt-accent4);
+  --loom-dot-5: var(--bt-dk1);
+
+  --loom-neutral-bg: var(--loom-panel-bg);
+  --loom-neutral-border: var(--loom-border);
+  --loom-neutral-text: var(--loom-text-secondary);
+
+  --loom-font: "Noto Sans JP", system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --loom-bg: #132a22;
+    --loom-panel-bg: #1a372d;
+    --loom-border: color-mix(in oklch, var(--bt-accent5) 35%, var(--loom-panel-bg));
+    --loom-text-primary: var(--bt-lt2);
+    --loom-text-secondary: var(--bt-accent5);
+
+    /* The single lightening formula for dark mode */
+    --loom-c1: color-mix(in oklch, var(--bt-accent1) 70%, white);
+    --loom-c2: color-mix(in oklch, var(--bt-accent2) 70%, white);
+    --loom-c3: color-mix(in oklch, var(--bt-accent3) 70%, white);
+    --loom-c4: color-mix(in oklch, var(--bt-accent4) 70%, white);
+    --loom-c6: color-mix(in oklch, var(--bt-accent6) 70%, white);
+    --loom-ink: var(--bt-dk1);
+    --loom-on-accent: var(--bt-dk1); /* lightened fills need dark text */
+
+    --loom-dot-1: var(--loom-c1);
+    --loom-dot-2: var(--loom-c2);
+    --loom-dot-3: var(--loom-c6);
+    --loom-dot-4: var(--loom-c4);
+    --loom-dot-5: color-mix(in oklch, var(--bt-dk1) 70%, white);
+  }
+}
