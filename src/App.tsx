@@ -24,7 +24,7 @@ import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
 
 const SAMPLE = sampleDataRaw as unknown as LoomDocument;
 
-const EMPTY_ARCH = { nodes: [], edges: [], laneHeaders: [], geometry: geometryFor("grid") };
+const EMPTY_ARCH = { nodes: [], edges: [], laneHeaders: [], tiles: [], geometry: geometryFor("grid") };
 
 type EditorState = { kind: "node" | "task" | "group"; id: string | null } | { kind: "json" } | null;
 
@@ -192,6 +192,7 @@ function App() {
               nodes={archFlow.nodes}
               edges={archFlow.edges}
               laneHeaders={archFlow.laneHeaders}
+              tiles={archFlow.tiles}
               onSwapLanes={handleSwapLanes}
               onNodeDragEnd={handleNodeDragEnd}
               onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}

@@ -3,12 +3,13 @@ import { Background, Controls, ReactFlow, useNodesState, useReactFlow, type Edge
 import { LoomArchEdge } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
-import type { LaneHeader } from "../graph/toArchitectureFlow";
+import type { LaneHeader, LaneTile } from "../graph/toArchitectureFlow";
+import { LoomLaneTile, type LoomLaneTileData } from "./LoomLaneTile";
 import { geometryFor } from "../graph/gridGeometry";
 import type { ArchLayout } from "../types";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
-const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader };
+const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader, loomLaneTile: LoomLaneTile };
 
 const HEADER_Y = -110;
 
@@ -39,6 +40,7 @@ interface Props {
   nodes: Node[];
   edges: Edge[];
   laneHeaders: LaneHeader[];
+  tiles: LaneTile[];
   onSwapLanes: (index: number) => void;
   onNodeDragEnd: (nodeId: string, position: { x: number; y: number }) => void;
   onNodeDoubleClick: (nodeId: string) => void;
@@ -54,6 +56,7 @@ export function ArchitecturePanel({
   nodes,
   edges,
   laneHeaders,
+  tiles,
   onSwapLanes,
   onNodeDragEnd,
   onNodeDoubleClick,
@@ -139,6 +142,26 @@ export function ArchitecturePanel({
     [laneHeaders, onSwapLanes, headerWidth],
   );
 
+  const tileNodes: Node[] = useMemo(
+    () =>
+      tiles.map((t) => {
+        const data: LoomLaneTileData = { shape: layout === "hex" ? "hex" : "rect", odd: t.col % 2 === 1 };
+        return {
+          id: `lane-tile-${t.col}-${t.row}`,
+          type: "loomLaneTile",
+          position: { x: t.x, y: t.y },
+          data,
+          draggable: false,
+          selectable: false,
+          connectable: false,
+          focusable: false,
+          zIndex: -1,
+          style: { width: t.w, height: t.h, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
+        };
+      }),
+    [tiles, layout],
+  );
+
   return (
     <div className="panel architecture-panel">
       <div className="panel-header">
@@ -152,7 +175,7 @@ export function ArchitecturePanel({
       </div>
       <div className="rf-container">
         <ReactFlow
-          nodes={[...headerNodes, ...rfNodes]}
+          nodes={[...tileNodes, ...headerNodes, ...rfNodes]}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}

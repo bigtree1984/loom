@@ -40,8 +40,9 @@ export function geometryFor(layout: ArchLayout): CellGeometry {
       nodeW: HEX_NODE_W,
       nodeH: HEX_NODE_H,
       pitchX,
-      // Rows of pointy-top hexes interlock at 3/4 height.
-      pitchY: HEX_NODE_H * 0.75 + HEX_GAP * (Math.sqrt(3) / 2),
+      // Rows of pointy-top hexes interlock at 3/4 of a hex's height; using
+      // the pitch-sized hex (pitchX wide) keeps background tiles exact.
+      pitchY: (pitchX * Math.sqrt(3)) / 2,
       oddRowShift: pitchX / 2,
     };
   }
@@ -75,4 +76,21 @@ export function columnX(col: number, layout: ArchLayout): number {
 
 function isOdd(n: number): boolean {
   return Math.abs(n) % 2 === 1;
+}
+
+/**
+ * Background tile for a cell, sized to the cell pitch so neighbouring
+ * tiles touch with no gap: a column reads as one continuous lane.
+ * grid: a pitchX x pitchY rectangle centred on the node.
+ * hex : a pointy-top hexagon pitchX wide — at that size rows interlock
+ *       exactly, since 0.75 * height equals pitchY.
+ */
+export function laneTileRect(col: number, row: number, layout: ArchLayout): { x: number; y: number; w: number; h: number } {
+  const g = geometryFor(layout);
+  const { x, y } = cellToPixel(col, row, layout);
+  const cx = x + g.nodeW / 2;
+  const cy = y + g.nodeH / 2;
+  const w = g.pitchX;
+  const h = layout === "hex" ? (g.pitchX * 2) / Math.sqrt(3) : g.pitchY;
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
 }

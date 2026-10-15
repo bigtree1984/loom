@@ -46,6 +46,10 @@
   --loom-dot-5: var(--bt-dk1);
 
   --loom-neutral-bg: var(--loom-panel-bg);
+  /* Alternating column tints behind the architecture grid (both themes
+     derive from border + bg, so dark mode needs no separate values). */
+  --loom-lane-a: color-mix(in oklch, var(--loom-border) 32%, var(--loom-bg));
+  --loom-lane-b: color-mix(in oklch, var(--loom-border) 10%, var(--loom-bg));
   --loom-neutral-border: var(--loom-border);
   --loom-neutral-text: var(--loom-text-secondary);
 

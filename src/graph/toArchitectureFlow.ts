@@ -1,6 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
-import { cellToPixel, columnX, geometryFor, type CellGeometry } from "./gridGeometry";
+import { cellToPixel, columnX, geometryFor, laneTileRect, type CellGeometry } from "./gridGeometry";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
 import { truncateLabel } from "./textUtils";
@@ -29,6 +29,15 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
 
 const NEUTRAL_BORDER = "var(--loom-border)";
 const NEUTRAL_EDGE = "var(--loom-neutral-border)";
+
+export interface LaneTile {
+  col: number;
+  row: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface LaneHeader {
   /** Column index. */
@@ -63,7 +72,7 @@ function hexLabel(label: string): string {
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
-): { nodes: Node[]; edges: Edge[]; laneHeaders: LaneHeader[]; geometry: CellGeometry } {
+): { nodes: Node[]; edges: Edge[]; laneHeaders: LaneHeader[]; tiles: LaneTile[]; geometry: CellGeometry } {
   const layout = architecture.layout ?? "grid";
   const geometry = geometryFor(layout);
 
@@ -144,5 +153,14 @@ export function toArchitectureFlow(
     x: columnX(col, layout),
   }));
 
-  return { nodes, edges, laneHeaders, geometry };
+  // Every cell from row 0 to the lowest used row, in every column that has
+  // a header or a node — empty cells included, so a column's tint is
+  // continuous rather than only showing where nodes happen to sit.
+  const colCount = Math.max(architecture.columns.length, ...architecture.nodes.map((n) => (n.col ?? 0) + 1));
+  const rowCount = Math.max(1, ...architecture.nodes.map((n) => (n.row ?? 0) + 1));
+  const tiles: LaneTile[] = [];
+  for (let col = 0; col < colCount; col++)
+    for (let row = 0; row < rowCount; row++) tiles.push({ col, row, ...laneTileRect(col, row, layout) });
+
+  return { nodes, edges, laneHeaders, tiles, geometry };
 }
