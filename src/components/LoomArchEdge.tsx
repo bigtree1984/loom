@@ -33,12 +33,12 @@ function getNodeIntersection(intersectionNode: InternalNode, otherNode: Internal
   return { x: cx + dx * t, y: cy + dy * t };
 }
 
-/** Plain, arrow-less connector — the architecture graph is undirected, so
- * no end is marked as "in" or "out". Anchor points float on each node's
+/** Directed connector (arrowhead at target, plus source when bidirectional;
+ * markers come from the edge's markerEnd/markerStart). Anchor points float on each node's
  * boundary along the line between the two node centers, rather than
  * snapping to a fixed handle. When active, a light travels back and forth
  * along the line instead of a one-way arrow. */
-export function LoomArchEdge({ id, source, target, style, label, labelStyle, data }: EdgeProps) {
+export function LoomArchEdge({ id, source, target, style, label, labelStyle, data, markerEnd, markerStart }: EdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
   const edgeData = data as LoomEdgeData | undefined;
@@ -57,7 +57,7 @@ export function LoomArchEdge({ id, source, target, style, label, labelStyle, dat
 
   return (
     <>
-      <BaseEdge id={id} path={path} style={style} label={label} labelStyle={labelStyle} />
+      <BaseEdge id={id} path={path} style={style} label={label} labelStyle={labelStyle} markerEnd={markerEnd} markerStart={markerStart} />
       {edgeData?.active && (
         <circle r={4} fill={edgeData.color}>
           <animateMotion

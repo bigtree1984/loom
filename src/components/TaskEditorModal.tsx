@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Connection, LoomDocument } from "../types";
+import { nextId } from "../graph/ids";
 import { Modal } from "./Modal";
 
 interface Props {
@@ -15,7 +16,7 @@ type Direction = "incoming" | "outgoing";
 export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
   const existing = useMemo(() => doc.flow.tasks.find((t) => t.id === taskId) ?? null, [doc, taskId]);
 
-  const [id, setId] = useState(existing?.id ?? "");
+  const [id] = useState(() => existing?.id ?? nextId("task", doc.flow.tasks.map((x) => x.id)));
   const [label, setLabel] = useState(existing?.label ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
   const [mainNode, setMainNode] = useState(existing?.mainNode ?? doc.architecture.nodes[0]?.id ?? "");
@@ -38,7 +39,7 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
 
   const addConnection = () => {
     if (!newConnTarget) return;
-    const selfId = existing?.id ?? id.trim();
+    const selfId = id;
     const conn: Connection =
       newConnDirection === "outgoing"
         ? { from: selfId, to: newConnTarget, label: newConnLabel.trim() || undefined }
@@ -53,15 +54,6 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
   };
 
   const handleSave = () => {
-    const trimmedId = id.trim();
-    if (!trimmedId) {
-      setError("IDを入力してください");
-      return;
-    }
-    if (!existing && doc.flow.tasks.some((t) => t.id === trimmedId)) {
-      setError("そのIDは既に使われています");
-      return;
-    }
     if (!label.trim()) {
       setError("ラベルを入力してください");
       return;
@@ -72,7 +64,7 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
     }
 
     const newTask = {
-      id: trimmedId,
+      id: id,
       label: label.trim(),
       description: description.trim(),
       mainNode,
@@ -107,10 +99,7 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
 
   return (
     <Modal title={existing ? "タスクを編集" : "タスクを追加"} onClose={onClose}>
-      <label>
-        ID
-        <input value={id} onChange={(e) => setId(e.target.value)} disabled={!!existing} placeholder="例: t10" />
-      </label>
+      {existing && <div style={{ fontSize: 11, opacity: 0.6 }}>ID: {id}</div>}
       <label>
         ラベル
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="例: 通知送信" />
@@ -163,7 +152,7 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
       <p className="modal-section-title">前後のタスク接続</p>
       {connections.length === 0 && <p className="modal-conn-row">まだ接続がありません</p>}
       {connections.map((c, i) => {
-        const selfId = existing?.id ?? id.trim();
+        const selfId = id;
         const isOutgoing = c.from === selfId;
         const other = isOutgoing ? c.to : c.from;
         return (

@@ -60,11 +60,13 @@ or to keep a lane with no real nodes yet visible (see "Lanes").
 
 ### ArchEdge
 
-Undirected — `a`/`b` carries no visual meaning (no arrowheads are drawn).
-The order is only used as a weak layout hint.
+Directed `a` → `b`: an arrowhead is drawn at `b` (the target). Set
+`"bidirectional": true` to also draw an arrowhead at `a`. The direction is
+also used as a layout hint.
 
 ```jsonc
 { "a": "script_21", "b": "gemini_tts", "label": "声を作らせる" }
+{ "a": "app", "b": "db", "bidirectional": true }
 ```
 
 ### ArchGroup

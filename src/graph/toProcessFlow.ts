@@ -9,8 +9,12 @@ const NODE_WIDTH = 176;
 const NODE_HEIGHT = 52;
 const MAX_LABEL_CHARS = 16;
 
-const NEUTRAL = { bg: "#F1EFE8", border: "#B4B2A9", text: "#5F5E5A" };
-const NEUTRAL_EDGE = "#B4B2A9";
+const NEUTRAL = {
+  bg: "var(--loom-neutral-bg)",
+  border: "var(--loom-neutral-border)",
+  text: "var(--loom-neutral-text)",
+};
+const NEUTRAL_EDGE = "var(--loom-neutral-border)";
 
 export function toProcessFlow(
   flow: LoomDocument["flow"],

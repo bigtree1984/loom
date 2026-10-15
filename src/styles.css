@@ -273,7 +273,7 @@
 }
 
 .uploader-error {
-  color: #a32d2d;
+  color: var(--loom-danger);
   font-size: 12px;
 }
 
