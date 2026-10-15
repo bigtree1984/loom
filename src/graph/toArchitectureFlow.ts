@@ -25,9 +25,7 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
 };
 
 const NEUTRAL_BORDER = "var(--loom-border)";
-// Literal hex on purpose: React Flow renders markers into <defs> and needs a
-// concrete color string (CSS var() is not reliably resolved there).
-const NEUTRAL_EDGE = "#B4B2A9";
+const NEUTRAL_EDGE = "var(--loom-neutral-border)";
 
 const TYPE_LABEL: Record<ArchNodeType, string> = {
   human: "人間",
