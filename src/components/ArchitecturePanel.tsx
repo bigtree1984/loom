@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Background, Controls, ReactFlow, useNodesState, type Edge, type Node, type NodeChange } from "@xyflow/react";
+import { Background, Controls, ReactFlow, useNodesState, useReactFlow, type Edge, type Node, type NodeChange } from "@xyflow/react";
 import { LoomArchEdge } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
@@ -11,6 +11,29 @@ const edgeTypes = { loomEdge: LoomArchEdge };
 const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader };
 
 const HEADER_Y = -110;
+
+/** Re-fits the viewport after a grid <-> hex toggle (positions change, so
+ * the old viewport can cut the diagram off). Waits two frames so the new
+ * node positions/measurements from setRfNodes are in the store first. */
+function FitOnLayoutChange({ layout }: { layout: ArchLayout }) {
+  const { fitView } = useReactFlow();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    let id2 = 0;
+    const id1 = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(() => void fitView({ padding: 0.2, duration: 200 }));
+    });
+    return () => {
+      cancelAnimationFrame(id1);
+      cancelAnimationFrame(id2);
+    };
+  }, [layout, fitView]);
+  return null;
+}
 
 interface Props {
   nodes: Node[];
@@ -150,6 +173,7 @@ export function ArchitecturePanel({
           elementsSelectable={false}
           proOptions={{ hideAttribution: true }}
         >
+          <FitOnLayoutChange layout={layout} />
           <Background gap={16} size={1} />
           <Controls showInteractive={false} />
         </ReactFlow>

@@ -9,6 +9,11 @@ import type { LoomEdgeData } from "../components/LoomArchEdge";
 import type { LoomArchNodeData } from "../components/LoomArchNode";
 
 const MAX_LABEL_CHARS_PER_LINE = 12;
+/** Hex nodes are narrower at the label's height (the pointed top/bottom
+ * eat into the box), so they get a smaller per-line budget and at most 2
+ * lines; the full label stays in the hover tooltip. */
+const HEX_MAX_LABEL_CHARS_PER_LINE = 8;
+const HEX_MAX_LABEL_LINES = 2;
 
 /** Dot color when a node doesn't specify `colorToken` explicitly — keeps
  * old JSON (authored before colorToken existed) showing a sensible dot
@@ -42,6 +47,19 @@ function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight |
   return null;
 }
 
+/** Up to 2 lines: an explicit "\n" split is kept, otherwise a single long
+ * line wraps into a second line; each line is truncated independently. */
+function hexLabel(label: string): string {
+  let lines = label.split("\n");
+  if (lines.length === 1 && label.length > HEX_MAX_LABEL_CHARS_PER_LINE) {
+    lines = [label.slice(0, HEX_MAX_LABEL_CHARS_PER_LINE), label.slice(HEX_MAX_LABEL_CHARS_PER_LINE)];
+  }
+  if (lines.length > HEX_MAX_LABEL_LINES) {
+    lines = [lines[0], `${lines.slice(1).join(" ")}`];
+  }
+  return truncateLabel(lines.join("\n"), HEX_MAX_LABEL_CHARS_PER_LINE);
+}
+
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
@@ -55,8 +73,16 @@ export function toArchitectureFlow(
     const isMain = highlight?.role === "main";
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;
     const colorToken = n.colorToken ?? COLOR_TOKEN_BY_TYPE[n.type];
+    const isHex = layout === "hex";
+    const borderWidth = isMain ? 2 : 1;
+    const label = isHex
+      ? hexLabel(n.label)
+      : truncateLabel(n.label, MAX_LABEL_CHARS_PER_LINE);
     const data: LoomArchNodeData = {
-      label: truncateLabel(n.label, MAX_LABEL_CHARS_PER_LINE),
+      label,
+      shape: isHex ? "hex" : "rect",
+      borderColor,
+      borderWidth,
       fullLabel: n.label,
       dotColor: `var(--loom-dot-${colorToken.slice("color_".length)})`,
       iconUrl: iconUrlFor(n.icon),
@@ -69,9 +95,11 @@ export function toArchitectureFlow(
       style: {
         width: geometry.nodeW,
         height: geometry.nodeH,
-        background: "var(--loom-panel-bg)",
-        border: `${isMain ? 2 : 1}px solid ${borderColor}`,
-        borderRadius: 8,
+        // Hex nodes draw their own outline + fill as an SVG polygon inside
+        // LoomArchNode (a CSS border would stay rectangular under clip-path).
+        background: isHex ? "transparent" : "var(--loom-panel-bg)",
+        border: isHex ? "none" : `${borderWidth}px solid ${borderColor}`,
+        borderRadius: isHex ? 0 : 8,
         color: "var(--loom-text-primary)",
         fontWeight: isMain ? 600 : 500,
         fontSize: 13,
@@ -80,7 +108,7 @@ export function toArchitectureFlow(
         alignItems: "center",
         justifyContent: "center",
         textAlign: "center",
-        padding: 8,
+        padding: isHex ? "8px 22px" : 8,
       },
     };
   });
@@ -105,6 +133,10 @@ export function toArchitectureFlow(
     };
   });
 
+  // Column headers in hex (DESIGN_v2 §11): kept, aligned to even-row x
+  // (columnX ignores the odd-row shift). Odd rows sit half a pitch right, so
+  // a header labels the column "starting" at row 0 — readable as a lane
+  // marker, and hiding them would also hide the lane reorder buttons.
   const laneHeaders: LaneHeader[] = architecture.columns.map((c, col) => ({
     col,
     id: c.id,

@@ -26,6 +26,15 @@ function getNodeIntersection(intersectionNode: InternalNode, otherNode: Internal
 
   if (dx === 0 && dy === 0) return { x: cx, y: cy };
 
+  if ((intersectionNode.data as { shape?: string } | undefined)?.shape === "hex") {
+    // Pointy-top hexagon inscribed in the box: vertical sides at x = ±w2
+    // (for |y| <= h2/2), slanted sides satisfy 0.5|x|/w2 + |y|/h2 = 1.
+    const tSide = dx !== 0 ? w2 / Math.abs(dx) : Infinity;
+    const tSlant = 1 / ((0.5 * Math.abs(dx)) / w2 + Math.abs(dy) / h2);
+    const t = Math.min(tSide, tSlant);
+    return { x: cx + dx * t, y: cy + dy * t };
+  }
+
   const scaleX = dx !== 0 ? w2 / Math.abs(dx) : Infinity;
   const scaleY = dy !== 0 ? h2 / Math.abs(dy) : Infinity;
   const t = Math.min(scaleX, scaleY);
