@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ArchEdge, ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
+import { nextId } from "../graph/ids";
 import { Modal } from "./Modal";
 
 const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage", "spacer"];
@@ -16,7 +17,7 @@ interface Props {
 export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const existing = useMemo(() => doc.architecture.nodes.find((n) => n.id === nodeId) ?? null, [doc, nodeId]);
 
-  const [id, setId] = useState(existing?.id ?? "");
+  const [id] = useState(() => existing?.id ?? nextId("node", doc.architecture.nodes.map((x) => x.id)));
   const [label, setLabel] = useState(existing?.label ?? "");
   const [type, setType] = useState<ArchNodeType>(existing?.type ?? "agent");
   const [group, setGroup] = useState(existing?.group ?? "");
@@ -34,7 +35,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
 
   const addEdge = () => {
     if (!newEdgeTarget) return;
-    const selfId = existing?.id ?? id.trim();
+    const selfId = id;
     setEdges((prev) => [...prev, { a: selfId, b: newEdgeTarget, label: newEdgeLabel.trim() || undefined }]);
     setNewEdgeTarget("");
     setNewEdgeLabel("");
@@ -48,22 +49,13 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const labelOf = (id: string) => doc.architecture.nodes.find((n) => n.id === id)?.label ?? id;
 
   const handleSave = () => {
-    const trimmedId = id.trim();
-    if (!trimmedId) {
-      setError("IDを入力してください");
-      return;
-    }
-    if (!existing && doc.architecture.nodes.some((n) => n.id === trimmedId)) {
-      setError("そのIDは既に使われています");
-      return;
-    }
     if (!label.trim()) {
       setError("ラベルを入力してください");
       return;
     }
 
     const newNode = {
-      id: trimmedId,
+      id: id,
       label: label.trim(),
       type,
       group: group || undefined,
@@ -98,10 +90,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
 
   return (
     <Modal title={existing ? "ノードを編集" : "ノードを追加"} onClose={onClose}>
-      <label>
-        ID
-        <input value={id} onChange={(e) => setId(e.target.value)} disabled={!!existing} placeholder="例: cache_service" />
-      </label>
+      {existing && <div style={{ fontSize: 11, opacity: 0.6 }}>ID: {id}</div>}
       <label>
         ラベル
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="例: キャッシュサービス" />
@@ -146,7 +135,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       <p className="modal-section-title">接続</p>
       {edges.length === 0 && <p className="modal-conn-row">まだ接続がありません</p>}
       {edges.map((e, i) => {
-        const selfId = existing?.id ?? id.trim();
+        const selfId = id;
         const other = otherEndOf(e, selfId);
         return (
           <div className="modal-conn-row" key={`${e.a}-${e.b}-${i}`}>
