@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Connection, LoomDocument, Task } from "../types";
+import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types";
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
 
@@ -26,7 +26,7 @@ interface PositionSnapshot {
 
 const AUTO_PLAY_INTERVAL_MS = 1800;
 
-export function useLoomState(initialDoc: LoomDocument | null) {
+export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null) {
   const [doc, setDoc] = useState<LoomDocument | null>(initialDoc ? normalizeLoomDocument(initialDoc) : null);
   const [position, setPosition] = useState<string[]>([]);
   const [joinArrivals, setJoinArrivals] = useState<JoinArrivals>({});
@@ -140,7 +140,7 @@ export function useLoomState(initialDoc: LoomDocument | null) {
   }, []);
 
   const loadDocument = useCallback(
-    (raw: LoomDocument) => {
+    (raw: LoomDocument | LoomDocumentInput) => {
       const next = normalizeLoomDocument(raw);
       if (doc) {
         setDocHistory((h) => [...h, doc]);

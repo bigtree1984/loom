@@ -6,7 +6,9 @@ import sampleDataRaw from "./sample-data/pattern-showcase.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
-import { snapPositionToLane, validLaneKeysFor, HUMAN_LANE, type LaneLayoutResult } from "./graph/layout";
+import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
+import { clearPlacement } from "./graph/normalizeDocument";
+import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
 import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
@@ -22,14 +24,7 @@ import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
 
 const SAMPLE = sampleDataRaw as unknown as LoomDocument;
 
-const EMPTY_LANE_LAYOUT: LaneLayoutResult = {
-  positions: new Map(),
-  laneOrder: [],
-  laneX: new Map(),
-  rowHeight: 0,
-  laneGap: 0,
-  nodeWidth: 0,
-};
+const EMPTY_ARCH = { nodes: [], edges: [], laneHeaders: [], geometry: geometryFor("grid") };
 
 type EditorState = { kind: "node" | "task" | "group"; id: string | null } | { kind: "json" } | null;
 
@@ -84,52 +79,41 @@ function App() {
   }, [shareStatus]);
 
   const archFlow = useMemo(() => {
-    if (!loom.doc) return { nodes: [], edges: [], layout: EMPTY_LANE_LAYOUT, laneHeaders: [] };
-    return toArchitectureFlow(loom.doc.architecture, loom.doc.flow, loom.highlightedArchNodes);
+    if (!loom.doc) return EMPTY_ARCH;
+    return toArchitectureFlow(loom.doc.architecture, loom.highlightedArchNodes);
   }, [loom.doc, loom.highlightedArchNodes]);
 
-  // Swaps lane `index` with its right-hand neighbor and pins the result as
-  // an explicit architecture.laneOrder override — whatever was showing
-  // (auto-optimized or already-pinned) becomes the new baseline the user
-  // is nudging, rather than the swap getting silently recomputed away.
+  // Swaps column `index` with its right-hand neighbour — header and every
+  // node in both columns move together.
   const handleSwapLanes = useCallback(
     (index: number) => {
-      if (!loom.doc) return;
-      const order = [...archFlow.layout.laneOrder];
-      if (index < 0 || index + 1 >= order.length) return;
-      [order[index], order[index + 1]] = [order[index + 1], order[index]];
-      loom.loadDocument({
-        ...loom.doc,
-        architecture: { ...loom.doc.architecture, laneOrder: order },
-      });
+      if (loom.doc) loom.loadDocument(swapColumns(loom.doc, index));
     },
-    [loom, archFlow.layout.laneOrder],
+    [loom],
   );
 
-  // Dropping a dragged node snaps it to the nearest lane/row instead of a
-  // freeform pixel position — group (or its absence, to fall back to the
-  // node's own type lane) and rowOrder get written back, restricted to
-  // lanes that actually make sense for this node's type (see
-  // validLaneKeysFor) so a drop can't produce a group value that silently
-  // lies about where the node visually landed.
+  // Dropping a node snaps it to the nearest cell; if that cell is taken the
+  // two nodes trade places, so a drop never stacks nodes.
   const handleNodeDragEnd = useCallback(
     (nodeId: string, position: { x: number; y: number }) => {
       if (!loom.doc) return;
-      const node = loom.doc.architecture.nodes.find((n) => n.id === nodeId);
-      if (!node) return;
-      const validLanes = validLaneKeysFor(node.type, archFlow.layout.laneOrder);
-      const { laneKey, rowOrder } = snapPositionToLane(position, validLanes, archFlow.layout.laneX, archFlow.layout.rowHeight);
-      const newGroup = laneKey === HUMAN_LANE || laneKey.startsWith("__type_") ? undefined : laneKey;
-      loom.loadDocument({
-        ...loom.doc,
-        architecture: {
-          ...loom.doc.architecture,
-          nodes: loom.doc.architecture.nodes.map((n) => (n.id === nodeId ? { ...n, group: newGroup, rowOrder } : n)),
-        },
-      });
+      const { col, row } = pixelToCell(position.x, position.y, loom.doc.architecture.layout ?? "grid");
+      loom.loadDocument(moveNodeToCell(loom.doc, nodeId, col, row));
     },
-    [loom, archFlow.layout],
+    [loom],
   );
+
+  // 整列し直す: forget every cell and rerun the automatic layout, keeping
+  // each node's current column as its grouping hint.
+  const handleRelayout = useCallback(() => {
+    if (loom.doc) loom.loadDocument(clearPlacement(loom.doc));
+  }, [loom]);
+
+  const handleToggleLayout = useCallback(() => {
+    if (!loom.doc) return;
+    const next = (loom.doc.architecture.layout ?? "grid") === "grid" ? "hex" : "grid";
+    loom.loadDocument({ ...loom.doc, architecture: { ...loom.doc.architecture, layout: next } });
+  }, [loom]);
 
   const processFlow = useMemo(() => {
     if (!loom.doc) return { nodes: [], edges: [] };
@@ -214,6 +198,9 @@ function App() {
               onAddNode={() => setEditor({ kind: "node", id: null })}
               onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
               onAddGroup={() => setEditor({ kind: "group", id: null })}
+              layout={loom.doc?.architecture.layout ?? "grid"}
+              onRelayout={handleRelayout}
+              onToggleLayout={handleToggleLayout}
             />
           </ReactFlowProvider>
           <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />

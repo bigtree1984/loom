@@ -3,7 +3,9 @@ import { Background, Controls, ReactFlow, useNodesState, type Edge, type Node, t
 import { LoomArchEdge } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
-import { NODE_WIDTH, type LaneHeader } from "../graph/toArchitectureFlow";
+import type { LaneHeader } from "../graph/toArchitectureFlow";
+import { geometryFor } from "../graph/gridGeometry";
+import type { ArchLayout } from "../types";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
 const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader };
@@ -20,6 +22,9 @@ interface Props {
   onAddNode: () => void;
   onGroupDoubleClick: (groupId: string) => void;
   onAddGroup: () => void;
+  layout: ArchLayout;
+  onRelayout: () => void;
+  onToggleLayout: () => void;
 }
 
 export function ArchitecturePanel({
@@ -32,7 +37,11 @@ export function ArchitecturePanel({
   onAddNode,
   onGroupDoubleClick,
   onAddGroup,
+  layout,
+  onRelayout,
+  onToggleLayout,
 }: Props) {
+  const headerWidth = geometryFor(layout).nodeW;
   const [rfNodes, setRfNodes, onNodesChangeBase] = useNodesState(nodes);
 
   // Only an id the user has actually dragged keeps its position across a
@@ -89,7 +98,7 @@ export function ArchitecturePanel({
           onMoveRight: () => onSwapLanes(i),
         };
         return {
-          id: `lane-header-${h.key}`,
+          id: `lane-header-${h.col}`,
           type: "loomLaneHeader",
           position: { x: h.x, y: HEADER_Y },
           data,
@@ -101,10 +110,10 @@ export function ArchitecturePanel({
           // node-level handlers — correct for a purely decorative node, but
           // this one has real interactive buttons inside it, so it must be
           // forced back on or every click passes through to the pane below.
-          style: { width: NODE_WIDTH, pointerEvents: "auto" },
+          style: { width: headerWidth, pointerEvents: "auto" },
         };
       }),
-    [laneHeaders, onSwapLanes],
+    [laneHeaders, onSwapLanes, headerWidth],
   );
 
   return (
@@ -112,7 +121,9 @@ export function ArchitecturePanel({
       <div className="panel-header">
         <div className="panel-title">アーキテクチャ(空間)</div>
         <div className="panel-header-actions">
-          <button onClick={onAddGroup}>+レーン追加</button>
+          <button onClick={onToggleLayout}>{layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>
+          <button onClick={onRelayout}>整列し直す</button>
+          <button onClick={onAddGroup}>+列追加</button>
           <button onClick={onAddNode}>+ノード追加</button>
         </div>
       </div>
@@ -125,8 +136,9 @@ export function ArchitecturePanel({
           onNodesChange={onNodesChange}
           onNodeDoubleClick={(_, node) => {
             if (node.type === "loomLaneHeader") {
-              const key = node.id.slice("lane-header-".length);
-              if (!key.startsWith("__")) onGroupDoubleClick(key);
+              const col = Number(node.id.slice("lane-header-".length));
+              const header = laneHeaders[col];
+              if (header) onGroupDoubleClick(header.id);
               return;
             }
             onNodeDoubleClick(node.id);

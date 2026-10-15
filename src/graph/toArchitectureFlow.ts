@@ -1,6 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
-import { computeStableOrder, layoutByLanes, type LaneLayoutResult } from "./layout";
+import { cellToPixel, columnX, geometryFor, type CellGeometry } from "./gridGeometry";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
 import { truncateLabel } from "./textUtils";
@@ -8,8 +8,6 @@ import type { ArchNodeHighlight } from "../state/useLoomState";
 import type { LoomEdgeData } from "../components/LoomArchEdge";
 import type { LoomArchNodeData } from "../components/LoomArchNode";
 
-export const NODE_WIDTH = 168;
-const NODE_HEIGHT = 64;
 const MAX_LABEL_CHARS_PER_LINE = 12;
 
 /** Dot color when a node doesn't specify `colorToken` explicitly — keeps
@@ -21,34 +19,16 @@ const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
   agent: "color_3",
   storage: "color_4",
   human: "color_5",
-  spacer: "color_1", // never actually rendered — a spacer has no dot
+  spacer: "color_1", // v1-only type; normalize drops spacers
 };
 
 const NEUTRAL_BORDER = "var(--loom-border)";
 const NEUTRAL_EDGE = "var(--loom-neutral-border)";
 
-const TYPE_LABEL: Record<ArchNodeType, string> = {
-  human: "人間",
-  frontend: "フロントエンド",
-  backend: "バックエンド",
-  agent: "エージェント",
-  storage: "データ",
-  spacer: "空白",
-};
-
-/** Human-readable label for a lane key — a declared group's label, or a
- * generated one for the human/type-fallback lanes (see LaneLayoutResult). */
-function laneLabelFor(key: string, groups: LoomDocument["architecture"]["groups"]): string {
-  if (key === "__human__") return TYPE_LABEL.human;
-  if (key.startsWith("__type_")) {
-    const type = key.slice("__type_".length) as ArchNodeType;
-    return TYPE_LABEL[type] ?? key;
-  }
-  return groups?.find((g) => g.id === key)?.label ?? key;
-}
-
 export interface LaneHeader {
-  key: string;
+  /** Column index. */
+  col: number;
+  id: string;
   label: string;
   x: number;
 }
@@ -64,53 +44,13 @@ function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight |
 
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
-  flow: LoomDocument["flow"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
-): { nodes: Node[]; edges: Edge[]; layout: LaneLayoutResult; laneHeaders: LaneHeader[] } {
-  // Each pipeline task's step order (from the flow panel's own ranking)
-  // becomes the definite sort key for whichever architecture node it
-  // runs on — the one node in each lane's ordering that isn't a guess.
-  const taskOrder = computeStableOrder(
-    flow.tasks.map((t) => t.id),
-    flow.connections.map((c) => ({ source: c.from, target: c.to })),
-  );
-  const taskOrderByMainNode = new Map<string, number>();
-  flow.tasks.forEach((t) => {
-    const ord = taskOrder.get(t.id);
-    if (ord === undefined) return;
-    const existing = taskOrderByMainNode.get(t.mainNode);
-    if (existing === undefined || ord < existing) taskOrderByMainNode.set(t.mainNode, ord);
-  });
-
-  const layout = layoutByLanes(
-    architecture.nodes.map((n) => ({ id: n.id, type: n.type, group: n.group, rowOrder: n.rowOrder })),
-    architecture.edges,
-    (architecture.groups ?? []).map((g) => g.id),
-    taskOrderByMainNode,
-    { width: NODE_WIDTH, height: NODE_HEIGHT },
-    architecture.laneOrder,
-  );
-  const positions = layout.positions;
+): { nodes: Node[]; edges: Edge[]; laneHeaders: LaneHeader[]; geometry: CellGeometry } {
+  const layout = architecture.layout ?? "grid";
+  const geometry = geometryFor(layout);
 
   const nodes: Node[] = architecture.nodes.map((n) => {
-    if (n.type === "spacer") {
-      const data: LoomArchNodeData = { label: "", fullLabel: "", dotColor: "", isSpacer: true };
-      return {
-        id: n.id,
-        type: "loomArchNode",
-        position: positions.get(n.id) ?? { x: 0, y: 0 },
-        data,
-        connectable: false,
-        style: {
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-          background: "transparent",
-          border: "1px dashed var(--loom-border)",
-          borderRadius: 8,
-          opacity: 0.5,
-        },
-      };
-    }
+    const position = cellToPixel(n.col ?? 0, n.row ?? 0, layout);
     const highlight = highlightedArchNodes.get(n.id);
     const isMain = highlight?.role === "main";
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;
@@ -124,11 +64,11 @@ export function toArchitectureFlow(
     return {
       id: n.id,
       type: "loomArchNode",
-      position: positions.get(n.id) ?? { x: 0, y: 0 },
+      position,
       data,
       style: {
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
+        width: geometry.nodeW,
+        height: geometry.nodeH,
         background: "var(--loom-panel-bg)",
         border: `${isMain ? 2 : 1}px solid ${borderColor}`,
         borderRadius: 8,
@@ -146,16 +86,16 @@ export function toArchitectureFlow(
   });
 
   const edges: Edge[] = architecture.edges.map((e, i) => {
-    const routeIndex = edgeRouteIndex(highlightedArchNodes.get(e.a), highlightedArchNodes.get(e.b));
+    const routeIndex = edgeRouteIndex(highlightedArchNodes.get(e.from), highlightedArchNodes.get(e.to));
     const active = routeIndex !== null;
     const color = active ? routeColorFor(routeIndex!).edge : NEUTRAL_EDGE;
     const edgeData: LoomEdgeData = { active, color };
 
     return {
-      id: `arch-edge-${i}-${e.a}-${e.b}`,
+      id: `arch-edge-${i}-${e.from}-${e.to}`,
       type: "loomEdge",
-      source: e.a,
-      target: e.b,
+      source: e.from,
+      target: e.to,
       label: e.label,
       data: edgeData,
       style: { stroke: color, strokeWidth: active ? 2 : 1 },
@@ -165,11 +105,12 @@ export function toArchitectureFlow(
     };
   });
 
-  const laneHeaders: LaneHeader[] = layout.laneOrder.map((key) => ({
-    key,
-    label: laneLabelFor(key, architecture.groups),
-    x: layout.laneX.get(key) ?? 0,
+  const laneHeaders: LaneHeader[] = architecture.columns.map((c, col) => ({
+    col,
+    id: c.id,
+    label: c.label,
+    x: columnX(col, layout),
   }));
 
-  return { nodes, edges, layout, laneHeaders };
+  return { nodes, edges, laneHeaders, geometry };
 }

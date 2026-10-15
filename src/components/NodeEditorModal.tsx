@@ -3,7 +3,7 @@ import type { ArchEdge, ArchNodeColorToken, ArchNodeType, LoomDocument } from ".
 import { nextId } from "../graph/ids";
 import { Modal } from "./Modal";
 
-const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage", "spacer"];
+const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
 const COLOR_TOKENS: ArchNodeColorToken[] = ["color_1", "color_2", "color_3", "color_4", "color_5"];
 
 interface Props {
@@ -20,23 +20,30 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const [id] = useState(() => existing?.id ?? nextId("node", doc.architecture.nodes.map((x) => x.id)));
   const [label, setLabel] = useState(existing?.label ?? "");
   const [type, setType] = useState<ArchNodeType>(existing?.type ?? "agent");
-  const [group, setGroup] = useState(existing?.group ?? "");
+  // Column index as a string ("" = a new column at the right edge).
+  const [col, setCol] = useState(existing?.col !== undefined ? String(existing.col) : "");
   const [colorToken, setColorToken] = useState<ArchNodeColorToken | "">(existing?.colorToken ?? "");
   const [icon, setIcon] = useState(existing?.icon ?? "");
   const [edges, setEdges] = useState<ArchEdge[]>(
-    doc.architecture.edges.filter((e) => e.a === nodeId || e.b === nodeId),
+    doc.architecture.edges.filter((e) => e.from === nodeId || e.to === nodeId),
   );
   const [newEdgeTarget, setNewEdgeTarget] = useState("");
   const [newEdgeLabel, setNewEdgeLabel] = useState("");
+  const [newEdgeDir, setNewEdgeDir] = useState<"out" | "in" | "both">("out");
   const [error, setError] = useState<string | null>(null);
 
   const otherNodes = doc.architecture.nodes.filter((n) => n.id !== nodeId);
-  const groups = doc.architecture.groups ?? [];
+  const columns = doc.architecture.columns;
 
   const addEdge = () => {
     if (!newEdgeTarget) return;
     const selfId = id;
-    setEdges((prev) => [...prev, { a: selfId, b: newEdgeTarget, label: newEdgeLabel.trim() || undefined }]);
+    const label = newEdgeLabel.trim() || undefined;
+    const edge: ArchEdge =
+      newEdgeDir === "in"
+        ? { from: newEdgeTarget, to: selfId, label }
+        : { from: selfId, to: newEdgeTarget, label, ...(newEdgeDir === "both" ? { bidirectional: true } : {}) };
+    setEdges((prev) => [...prev, edge]);
     setNewEdgeTarget("");
     setNewEdgeLabel("");
   };
@@ -45,7 +52,8 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
     setEdges((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const otherEndOf = (e: ArchEdge, selfId: string) => (e.a === selfId ? e.b : e.a);
+  const otherEndOf = (e: ArchEdge, selfId: string) => (e.from === selfId ? e.to : e.from);
+  const arrowOf = (e: ArchEdge, selfId: string) => (e.bidirectional ? "↔" : e.from === selfId ? "→" : "←");
   const labelOf = (id: string) => doc.architecture.nodes.find((n) => n.id === id)?.label ?? id;
 
   const handleSave = () => {
@@ -58,11 +66,14 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       id: id,
       label: label.trim(),
       type,
-      group: group || undefined,
+      // Same column keeps its cell; a new column lets normalize pick the
+      // first free row there.
+      ...(col === "" ? {} : { col: Number(col) }),
+      ...(existing && existing.col === Number(col) && col !== "" ? { row: existing.row } : {}),
       colorToken: colorToken || undefined,
       icon: icon.trim() || undefined,
     };
-    const otherEdges = doc.architecture.edges.filter((e) => e.a !== nodeId && e.b !== nodeId);
+    const otherEdges = doc.architecture.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
 
     onSave({
       ...doc,
@@ -83,7 +94,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       architecture: {
         ...doc.architecture,
         nodes: doc.architecture.nodes.filter((n) => n.id !== nodeId),
-        edges: doc.architecture.edges.filter((e) => e.a !== nodeId && e.b !== nodeId),
+        edges: doc.architecture.edges.filter((e) => e.from !== nodeId && e.to !== nodeId),
       },
     });
   };
@@ -106,12 +117,12 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         </select>
       </label>
       <label>
-        グループ
-        <select value={group} onChange={(e) => setGroup(e.target.value)}>
-          <option value="">(なし)</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.label}
+        列
+        <select value={col} onChange={(e) => setCol(e.target.value)}>
+          <option value="">(右端に新しい列)</option>
+          {columns.map((c, i) => (
+            <option key={c.id} value={String(i)}>
+              {c.label || `列${i + 1}`}
             </option>
           ))}
         </select>
@@ -138,9 +149,9 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         const selfId = id;
         const other = otherEndOf(e, selfId);
         return (
-          <div className="modal-conn-row" key={`${e.a}-${e.b}-${i}`}>
+          <div className="modal-conn-row" key={`${e.from}-${e.to}-${i}`}>
             <span className="modal-conn-label">
-              — {labelOf(other)}
+              {arrowOf(e, selfId)} {labelOf(other)}
               {e.label ? `(${e.label})` : ""}
             </span>
             <button onClick={() => removeEdge(i)}>削除</button>
@@ -148,6 +159,11 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         );
       })}
       <div className="modal-add-conn">
+        <select value={newEdgeDir} onChange={(e) => setNewEdgeDir(e.target.value as "out" | "in" | "both")} aria-label="向き">
+          <option value="out">→</option>
+          <option value="in">←</option>
+          <option value="both">↔</option>
+        </select>
         <select value={newEdgeTarget} onChange={(e) => setNewEdgeTarget(e.target.value)}>
           <option value="">接続先を選択</option>
           {otherNodes.map((n) => (
