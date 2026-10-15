@@ -486,3 +486,28 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Hex layout: the outline is an SVG polygon behind the content (CSS
+ * borders don't follow clip-path). Pointer events stay on the node box so
+ * drag/double-click work anywhere in it. */
+.loom-arch-node-hex {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.loom-arch-node-content-hex {
+  position: relative;
+  font-size: 12px;
+}
+
+.loom-arch-node-content-hex .loom-arch-node-label {
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.25;
+}
