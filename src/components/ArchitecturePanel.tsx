@@ -5,13 +5,12 @@ import { LoomArchNode } from "./LoomArchNode";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
 import type { LaneHeader, LaneTile } from "../graph/toArchitectureFlow";
 import { LoomLaneTile, type LoomLaneTileData } from "./LoomLaneTile";
-import { geometryFor } from "../graph/gridGeometry";
+import { geometryFor, HEADER_Y } from "../graph/gridGeometry";
 import type { ArchLayout } from "../types";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
 const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader, loomLaneTile: LoomLaneTile };
 
-const HEADER_Y = -110;
 
 /** Re-fits the viewport after a grid <-> hex toggle (positions change, so
  * the old viewport can cut the diagram off). Waits two frames so the new
@@ -145,9 +144,9 @@ export function ArchitecturePanel({
   const tileNodes: Node[] = useMemo(
     () =>
       tiles.map((t) => {
-        const data: LoomLaneTileData = { shape: layout === "hex" ? "hex" : "rect", odd: t.col % 2 === 1 };
+        const data: LoomLaneTileData = { shape: layout === "hex" && !t.kind ? "hex" : "rect", odd: t.col % 2 === 1 };
         return {
-          id: `lane-tile-${t.col}-${t.row}`,
+          id: t.kind ? `lane-band-${t.col}` : `lane-tile-${t.col}-${t.row}`,
           type: "loomLaneTile",
           position: { x: t.x, y: t.y },
           data,

@@ -10,6 +10,9 @@ import type { ArchLayout } from "../types";
  * and a diagram toggled between the two layouts keeps its silhouette.
  */
 
+/** y of the column header row (above row 0). */
+export const HEADER_Y = -110;
+
 export const GRID_NODE_W = 168;
 export const GRID_NODE_H = 64;
 const GRID_GAP_X = 96;
@@ -19,7 +22,9 @@ const GRID_GAP_Y = 24;
 export const HEX_NODE_W = 150;
 /** Pointy-top hex height = width * 2/sqrt(3). */
 export const HEX_NODE_H = Math.round((HEX_NODE_W * 2) / Math.sqrt(3));
-const HEX_GAP = 12;
+// Wide enough that a node sits well inside its lane tile and edges between
+// neighbouring hexes have visible length.
+const HEX_GAP = 40;
 
 export interface CellGeometry {
   /** Size of the node box drawn in a cell. */

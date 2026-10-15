@@ -1,6 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
-import { cellToPixel, columnX, geometryFor, laneTileRect, type CellGeometry } from "./gridGeometry";
+import { cellToPixel, columnX, geometryFor, HEADER_Y, laneTileRect, type CellGeometry } from "./gridGeometry";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
 import { truncateLabel } from "./textUtils";
@@ -9,11 +9,6 @@ import type { LoomEdgeData } from "../components/LoomArchEdge";
 import type { LoomArchNodeData } from "../components/LoomArchNode";
 
 const MAX_LABEL_CHARS_PER_LINE = 12;
-/** Hex nodes are narrower at the label's height (the pointed top/bottom
- * eat into the box), so they get a smaller per-line budget and at most 2
- * lines; the full label stays in the hover tooltip. */
-const HEX_MAX_LABEL_CHARS_PER_LINE = 8;
-const HEX_MAX_LABEL_LINES = 2;
 
 /** Dot color when a node doesn't specify `colorToken` explicitly — keeps
  * old JSON (authored before colorToken existed) showing a sensible dot
@@ -31,6 +26,8 @@ const NEUTRAL_BORDER = "var(--loom-border)";
 const NEUTRAL_EDGE = "var(--loom-neutral-border)";
 
 export interface LaneTile {
+  /** "band" = the strip behind the column header, joining it to the tiles. */
+  kind?: "band";
   col: number;
   row: number;
   x: number;
@@ -56,19 +53,6 @@ function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight |
   return null;
 }
 
-/** Up to 2 lines: an explicit "\n" split is kept, otherwise a single long
- * line wraps into a second line; each line is truncated independently. */
-function hexLabel(label: string): string {
-  let lines = label.split("\n");
-  if (lines.length === 1 && label.length > HEX_MAX_LABEL_CHARS_PER_LINE) {
-    lines = [label.slice(0, HEX_MAX_LABEL_CHARS_PER_LINE), label.slice(HEX_MAX_LABEL_CHARS_PER_LINE)];
-  }
-  if (lines.length > HEX_MAX_LABEL_LINES) {
-    lines = [lines[0], `${lines.slice(1).join(" ")}`];
-  }
-  return truncateLabel(lines.join("\n"), HEX_MAX_LABEL_CHARS_PER_LINE);
-}
-
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
@@ -84,9 +68,10 @@ export function toArchitectureFlow(
     const colorToken = n.colorToken ?? COLOR_TOKEN_BY_TYPE[n.type];
     const isHex = layout === "hex";
     const borderWidth = isMain ? 2 : 1;
-    const label = isHex
-      ? hexLabel(n.label)
-      : truncateLabel(n.label, MAX_LABEL_CHARS_PER_LINE);
+    // Hex: hand the full label to CSS (2-line clamp with ellipsis) so the
+    // wrap point and the "…" always agree — counting characters in JS
+    // couldn't know where the browser would actually wrap.
+    const label = isHex ? n.label : truncateLabel(n.label, MAX_LABEL_CHARS_PER_LINE);
     const data: LoomArchNodeData = {
       label,
       shape: isHex ? "hex" : "rect",
@@ -126,7 +111,7 @@ export function toArchitectureFlow(
     const routeIndex = edgeRouteIndex(highlightedArchNodes.get(e.from), highlightedArchNodes.get(e.to));
     const active = routeIndex !== null;
     const color = active ? routeColorFor(routeIndex!).edge : NEUTRAL_EDGE;
-    const edgeData: LoomEdgeData = { active, color };
+    const edgeData: LoomEdgeData = { active, color, bidirectional: !!e.bidirectional };
 
     return {
       id: `arch-edge-${i}-${e.from}-${e.to}`,
@@ -161,6 +146,13 @@ export function toArchitectureFlow(
   const tiles: LaneTile[] = [];
   for (let col = 0; col < colCount; col++)
     for (let row = 0; row < rowCount; row++) tiles.push({ col, row, ...laneTileRect(col, row, layout) });
+  // A flat strip from just above the header down to row 0's centre, so the
+  // header sits inside its lane's tint (it covers hex row 0's pointed top).
+  for (let col = 0; col < colCount; col++) {
+    const first = laneTileRect(col, 0, layout);
+    const top = HEADER_Y - 24;
+    tiles.push({ kind: "band", col, row: -1, x: first.x, y: top, w: first.w, h: first.y + first.h / 2 - top });
+  }
 
   return { nodes, edges, laneHeaders, tiles, geometry };
 }

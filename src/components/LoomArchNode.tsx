@@ -54,7 +54,7 @@ export function LoomArchNode({ data }: NodeProps) {
       )}
       <div
         className={`loom-arch-node-content${isHex ? " loom-arch-node-content-hex" : ""}`}
-        title={d.fullLabel !== d.label ? d.fullLabel : undefined}
+        title={isHex || d.fullLabel !== d.label ? d.fullLabel : undefined}
       >
         {d.iconUrl && <img src={d.iconUrl} alt="" className="loom-arch-node-icon" />}
         <div className="loom-arch-node-row">
