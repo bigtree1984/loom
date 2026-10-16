@@ -2,13 +2,19 @@ import type { Task } from "../types";
 import { routeColorFor } from "../graph/routeColors";
 
 interface Props {
+  /** false = nothing loaded yet; true with no tasks = step highlight cleared. */
+  hasDoc?: boolean;
   tasks: Task[];
   routeColorByTask: Map<string, number>;
 }
 
-export function TaskDetailPanel({ tasks, routeColorByTask }: Props) {
+export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true }: Props) {
   if (tasks.length === 0) {
-    return <div className="task-detail empty">JSONを読み込んでください</div>;
+    return (
+      <div className="task-detail empty">
+        {hasDoc ? "タスクをクリックするか「次へ」で再生を始めます" : "JSONを読み込んでください"}
+      </div>
+    );
   }
   // Only show route-color stripes when multiple tasks are genuinely
   // simultaneous — a single task keeps the plain, unaccented look.

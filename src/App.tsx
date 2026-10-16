@@ -353,6 +353,7 @@ function App() {
             nodes={processFlow.nodes}
             edges={processFlow.edges}
             onTaskClick={loom.jumpTo}
+            onPaneClick={loom.clearPosition}
             onTaskDoubleClick={(id) => setEditor({ kind: "task", id })}
             onAddTask={() => setEditor({ kind: "task", id: null })}
             readOnly={present}
@@ -398,7 +399,7 @@ function App() {
               />
             </ReactFlowProvider>
           )}
-          <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
+          <TaskDetailPanel hasDoc={!!loom.doc} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
         </div>
       </div>
 

@@ -8,6 +8,8 @@ interface Props {
   nodes: Node[];
   edges: Edge[];
   onTaskClick: (taskId: string) => void;
+  /** Click on empty space: drop the current-step highlight. */
+  onPaneClick?: () => void;
   onTaskDoubleClick: (taskId: string) => void;
   onAddTask: () => void;
   readOnly?: boolean;
@@ -15,7 +17,7 @@ interface Props {
   picking?: { selected: Set<string>; exclude?: string; onPick: (taskId: string) => void } | null;
 }
 
-export function ProcessFlowPanel({ nodes, edges, onTaskClick, onTaskDoubleClick, onAddTask, readOnly = false, picking = null }: Props) {
+export function ProcessFlowPanel({ nodes, edges, onTaskClick, onPaneClick, onTaskDoubleClick, onAddTask, readOnly = false, picking = null }: Props) {
   const shownNodes = useMemo(
     () =>
       picking
@@ -48,6 +50,9 @@ export function ProcessFlowPanel({ nodes, edges, onTaskClick, onTaskDoubleClick,
           onNodeClick={(_, node) => {
             if (!picking) onTaskClick(node.id);
             else if (node.id !== picking.exclude) picking.onPick(node.id);
+          }}
+          onPaneClick={() => {
+            if (!picking) onPaneClick?.();
           }}
           onNodeDoubleClick={(_, node) => {
             if (!readOnly && !picking) onTaskDoubleClick(node.id);
