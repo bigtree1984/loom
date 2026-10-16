@@ -11,7 +11,7 @@ import type { ArchLayout } from "../types";
  */
 
 /** y of the column header row (above row 0). */
-export const HEADER_Y = -110;
+export const HEADER_Y = -48; // header (~16px tall) sits ~31px above row 0
 
 export const GRID_NODE_W = 168;
 export const GRID_NODE_H = 64;
