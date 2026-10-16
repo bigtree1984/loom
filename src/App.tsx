@@ -5,12 +5,15 @@ import "./styles.css";
 import sampleDataRaw from "./sample-data/pattern-showcase.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
+import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
 import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
+import { NoteView } from "./components/NoteView";
+import { moveNodeToNoteCell, resetNoteCells } from "./graph/noteCells";
 import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
 import { ControlBar } from "./components/ControlBar";
 import { TaskDetailPanel } from "./components/TaskDetailPanel";
@@ -20,7 +23,15 @@ import { TaskEditorModal } from "./components/TaskEditorModal";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
 import { useSampleAutoload } from "./hooks/useSampleAutoload";
-import { decodeDocFromLocationHash, encodeDocToShareUrl } from "./urlShare";
+import { compactForPresent } from "./graph/presentLayout";
+import { Modal } from "./components/Modal";
+import {
+  decodeShareFromLocationHash,
+  encodeDocToShareUrl,
+  readModeFromLocationHash,
+  withModeInHash,
+  type LoomMode,
+} from "./urlShare";
 
 const SAMPLE = sampleDataRaw as unknown as LoomDocument;
 
@@ -33,6 +44,21 @@ function App() {
   const [editor, setEditor] = useState<EditorState>(null);
   const [autoloadStatus, setAutoloadStatus] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  // Mode lives in the URL fragment. A link carrying a doc but no mode is a
+  // shared link -> "present"; a fresh visit (no doc) -> "edit".
+  const [mode, setMode] = useState<LoomMode>(
+    () => readModeFromLocationHash() ?? (location.hash.startsWith("#doc=") ? "present" : "edit"),
+  );
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const present = mode === "present";
+  const note = mode === "note";
+
+  const handleSetMode = useCallback((next: LoomMode) => {
+    setMode(next);
+    setMenuOpen(false);
+    history.replaceState(null, "", `${location.pathname}${location.search}${withModeInHash(location.hash, next)}`);
+  }, []);
 
   // A shared link carries its document entirely in the URL fragment (never
   // sent to the server — see src/urlShare.ts), so loading one just means
@@ -40,8 +66,11 @@ function App() {
   useEffect(() => {
     void (async () => {
       try {
-        const fromHash = await decodeDocFromLocationHash();
-        if (fromHash) loom.loadDocument(fromHash);
+        const fromHash = await decodeShareFromLocationHash();
+        if (fromHash) {
+          loom.loadDocument(fromHash.doc);
+          setMode(fromHash.mode);
+        }
       } catch {
         setShareStatus("共有リンクの読み込みに失敗しました");
       }
@@ -50,12 +79,13 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCopyShareLink = useCallback(() => {
+  const handleCopyShareLink = useCallback((linkMode: LoomMode) => {
     if (!loom.doc) return;
+    setShareDialogOpen(false);
     void (async () => {
       let url: string;
       try {
-        url = await encodeDocToShareUrl(loom.doc!);
+        url = await encodeDocToShareUrl(loom.doc!, linkMode);
       } catch {
         setShareStatus("共有リンクの作成に失敗しました");
         return;
@@ -80,8 +110,11 @@ function App() {
 
   const archFlow = useMemo(() => {
     if (!loom.doc) return EMPTY_ARCH;
-    return toArchitectureFlow(loom.doc.architecture, loom.highlightedArchNodes);
-  }, [loom.doc, loom.highlightedArchNodes]);
+    // Present mode renders a compacted copy (empty columns skipped); the
+    // document itself is never touched.
+    const arch = present ? compactForPresent(loom.doc.architecture) : loom.doc.architecture;
+    return toArchitectureFlow(arch, loom.highlightedArchNodes);
+  }, [loom.doc, loom.highlightedArchNodes, present]);
 
   // Swaps column `index` with its right-hand neighbour — header and every
   // node in both columns move together.
@@ -113,6 +146,17 @@ function App() {
     if (!loom.doc) return;
     const next = (loom.doc.architecture.layout ?? "grid") === "grid" ? "hex" : "grid";
     loom.loadDocument({ ...loom.doc, architecture: { ...loom.doc.architecture, layout: next } });
+  }, [loom]);
+
+  // note挿絵 view: only noteCol/noteRow change, never the screen col/row.
+  const handleNoteMove = useCallback(
+    (nodeId: string, col: number, row: number) => {
+      if (loom.doc) loom.loadDocument(moveNodeToNoteCell(loom.doc, nodeId, col, row));
+    },
+    [loom],
+  );
+  const handleNoteReset = useCallback(() => {
+    if (loom.doc) loom.loadDocument(resetNoteCells(loom.doc));
   }, [loom]);
 
   const processFlow = useMemo(() => {
@@ -154,19 +198,63 @@ function App() {
           <p className="app-tagline">空間という経糸に、時間という緯糸を通す。</p>
         </div>
         <div className="app-header-actions">
-          <button onClick={loom.undoEdit} disabled={!loom.canUndoEdit}>
-            元に戻す
-          </button>
-          <button onClick={loom.redoEdit} disabled={!loom.canRedoEdit}>
-            やり直す
-          </button>
-          <button onClick={() => setEditor({ kind: "json" })} disabled={!loom.doc}>
-            JSONを表示/編集
-          </button>
-          <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
-          <button onClick={handleCopyShareLink} disabled={!loom.doc}>
+          {present ? (
+            <div className="menu-wrap">
+              <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
+                メニュー
+              </button>
+              {menuOpen && (
+                <div className="menu-dropdown">
+                  <button onClick={loom.undoEdit} disabled={!loom.canUndoEdit}>
+                    元に戻す
+                  </button>
+                  <button onClick={loom.redoEdit} disabled={!loom.canRedoEdit}>
+                    やり直す
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setEditor({ kind: "json" });
+                    }}
+                    disabled={!loom.doc}
+                  >
+                    JSONを表示/編集
+                  </button>
+                  <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <button onClick={loom.undoEdit} disabled={!loom.canUndoEdit}>
+                元に戻す
+              </button>
+              <button onClick={loom.redoEdit} disabled={!loom.canRedoEdit}>
+                やり直す
+              </button>
+              <button onClick={() => setEditor({ kind: "json" })} disabled={!loom.doc}>
+                JSONを表示/編集
+              </button>
+              <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
+            </>
+          )}
+          <button onClick={() => setShareDialogOpen(true)} disabled={!loom.doc}>
             共有リンクをコピー
           </button>
+          <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
+          <div className="mode-switch" role="group" aria-label="モード">
+            {(
+              [
+                ["edit", "編集"],
+                ["present", "プレゼン"],
+                ["note", "note挿絵"],
+              ] as const
+            ).map(([m, label]) => (
+              <button key={m} onClick={() => handleSetMode(m)} aria-pressed={mode === m}>
+                {label}
+              </button>
+            ))}
+          </div>
           <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
             エージェント向け仕様
           </a>
@@ -184,26 +272,39 @@ function App() {
             onTaskClick={loom.jumpTo}
             onTaskDoubleClick={(id) => setEditor({ kind: "task", id })}
             onAddTask={() => setEditor({ kind: "task", id: null })}
+            readOnly={present}
           />
         </ReactFlowProvider>
         <div className="architecture-column">
-          <ReactFlowProvider>
-            <ArchitecturePanel
-              nodes={archFlow.nodes}
-              edges={archFlow.edges}
-              laneHeaders={archFlow.laneHeaders}
-              tiles={archFlow.tiles}
-              onSwapLanes={handleSwapLanes}
-              onNodeDragEnd={handleNodeDragEnd}
-              onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
-              onAddNode={() => setEditor({ kind: "node", id: null })}
-              onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
-              onAddGroup={() => setEditor({ kind: "group", id: null })}
-              layout={loom.doc?.architecture.layout ?? "grid"}
-              onRelayout={handleRelayout}
+          {note && loom.doc ? (
+            <NoteView
+              doc={loom.doc}
+              currentTasks={loom.currentTasks}
+              highlight={loom.highlightedArchNodes}
+              onMoveNode={handleNoteMove}
+              onReset={handleNoteReset}
               onToggleLayout={handleToggleLayout}
             />
-          </ReactFlowProvider>
+          ) : (
+          <ReactFlowProvider>
+              <ArchitecturePanel
+                nodes={archFlow.nodes}
+                edges={archFlow.edges}
+                laneHeaders={archFlow.laneHeaders}
+                tiles={archFlow.tiles}
+                onSwapLanes={handleSwapLanes}
+                onNodeDragEnd={handleNodeDragEnd}
+                onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
+                onAddNode={() => setEditor({ kind: "node", id: null })}
+                onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
+                onAddGroup={() => setEditor({ kind: "group", id: null })}
+                layout={loom.doc?.architecture.layout ?? "grid"}
+                onRelayout={handleRelayout}
+                onToggleLayout={handleToggleLayout}
+                readOnly={present}
+              />
+            </ReactFlowProvider>
+          )}
           <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
         </div>
       </div>
@@ -218,8 +319,18 @@ function App() {
           isPlaying={loom.isPlaying}
           togglePlay={loom.togglePlay}
           isComplete={loom.isComplete}
+          large={present}
         />
       </footer>
+
+      {shareDialogOpen && (
+        <Modal title="共有リンクの種類" onClose={() => setShareDialogOpen(false)}>
+          <div className="share-choices">
+            <button onClick={() => handleCopyShareLink("present")}>プレゼン用(閲覧)</button>
+            <button onClick={() => handleCopyShareLink("edit")}>編集用</button>
+          </div>
+        </Modal>
+      )}
 
       {editor?.kind === "node" && loom.doc && (
         <NodeEditorModal doc={loom.doc} nodeId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />

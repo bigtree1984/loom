@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { decodeDocFromLocationHash, encodeDocToShareUrl } from "../urlShare";
+import { decodeDocFromLocationHash, decodeShareFromLocationHash, encodeDocToShareUrl, readModeFromLocationHash, withModeInHash } from "../urlShare";
 import type { LoomDocument } from "../types";
 
 const doc: LoomDocument = {
@@ -23,5 +23,23 @@ describe("urlShare", () => {
     expect(await decodeDocFromLocationHash()).toBeNull();
     vi.stubGlobal("location", { origin: "", pathname: "/", hash: "#doc=" });
     expect(await decodeDocFromLocationHash()).toBeNull();
+  });
+  it("round-trips mode and defaults to present when absent", async () => {
+    vi.stubGlobal("location", { origin: "http://x.test", pathname: "/app", hash: "" });
+    for (const mode of ["edit", "present"] as const) {
+      const url = await encodeDocToShareUrl(doc, mode);
+      vi.stubGlobal("location", { origin: "http://x.test", pathname: "/app", hash: url.slice(url.indexOf("#")) });
+      expect(await decodeShareFromLocationHash()).toEqual({ doc, mode });
+      expect(readModeFromLocationHash()).toBe(mode);
+    }
+    const old = await encodeDocToShareUrl(doc);
+    vi.stubGlobal("location", { origin: "http://x.test", pathname: "/app", hash: old.slice(old.indexOf("#")) });
+    expect((await decodeShareFromLocationHash())?.mode).toBe("present");
+    expect(readModeFromLocationHash()).toBeNull();
+  });
+  it("swaps only the mode param", () => {
+    expect(withModeInHash("#doc=abc-_9&mode=present", "edit")).toBe("#doc=abc-_9&mode=edit");
+    expect(withModeInHash("#doc=abc", "present")).toBe("#doc=abc&mode=present");
+    expect(withModeInHash("", "edit")).toBe("#mode=edit");
   });
 });

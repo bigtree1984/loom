@@ -59,7 +59,8 @@ Index in `columns` = the column's position (0 = leftmost).
   "col": 2, "row": 0,          // optional — exact cell; omit to let Loom place it
   "colorToken": "color_4",     // optional — "color_1".."color_5", the category dot's color.
                                 // Omit to fall back to a type-based default.
-  "icon": "gcp-cloud-storage"  // optional — key into the icon registry (see "Icons")
+  "icon": "gcp-cloud-storage", // optional — key into the icon registry (see "Icons")
+  "noteCol": 0, "noteRow": 1   // optional — cell in the note illustration view (see below); usually set by the user
 }
 ```
 
@@ -133,6 +134,15 @@ looping back:
 - Two nodes on one cell: the later one moves down to the next free row.
 - Empty cells are simply blank space; there is no placeholder node.
 
+## Note illustration view
+
+`#...&mode=note` shows the figure exactly as it exports for note.com
+(1240px wide, lane-less canvas 4 cells wide for grid / 3 for hex). Lanes
+appear as cell tints with a legend. Nodes there use `noteCol`/`noteRow`,
+kept separate from `col`/`row` so arranging the note figure never moves
+the normal diagram; nodes without them are placed automatically. You
+normally leave these out and let the user arrange the figure.
+
 ## Older (v1) documents
 
 Documents written for the previous format still load and are converted
@@ -168,7 +178,10 @@ A document round-trips entirely through the URL fragment — the part
 after `#`, which browsers never send in HTTP requests — so a share link
 never touches any server, which matters for confidential diagrams.
 
-Format: `<origin>/#doc=<base64url(gzip(JSON.stringify(doc)))>`
+Format: `<origin>/#doc=<base64url(gzip(JSON.stringify(doc)))>&mode=<mode>`
+
+`mode` is optional: `present` (read-only presentation, the default for a
+link carrying a doc), `edit`, or `note` (the note illustration view).
 
 To build one:
 

@@ -1,6 +1,27 @@
 import type { LoomDocument } from "./types";
 
+export type LoomMode = "edit" | "present" | "note";
+
 const HASH_PREFIX = "#doc=";
+
+function isMode(v: string | null | undefined): v is LoomMode {
+  return v === "edit" || v === "present" || v === "note";
+}
+
+/** Reads the `mode` param from the current fragment, if valid. */
+export function readModeFromLocationHash(): LoomMode | null {
+  const m = new URLSearchParams(location.hash.replace(/^#/, "")).get("mode");
+  return isMode(m) ? m : null;
+}
+
+/** Swaps only the `mode` param of the current fragment (doc untouched). */
+export function withModeInHash(hash: string, mode: LoomMode): string {
+  const params = new URLSearchParams(hash.replace(/^#/, ""));
+  params.set("mode", mode);
+  // URLSearchParams would percent-encode nothing in base64url, so the doc
+  // value passes through unchanged.
+  return `#${params.toString()}`;
+}
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -52,19 +73,29 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
  * ever too large to comfortably fit in a URL, that's the signal to add a
  * server-side (ideally client-encrypted) store instead of stretching this.
  */
-export async function encodeDocToShareUrl(doc: LoomDocument): Promise<string> {
+export async function encodeDocToShareUrl(doc: LoomDocument, mode?: LoomMode): Promise<string> {
   const json = JSON.stringify(doc);
   const compressed = await gzip(new TextEncoder().encode(json));
   const encoded = bytesToBase64Url(compressed);
-  return `${location.origin}${location.pathname}${HASH_PREFIX}${encoded}`;
+  return `${location.origin}${location.pathname}${HASH_PREFIX}${encoded}${mode ? `&mode=${mode}` : ""}`;
 }
 
-/** Reads a document out of the current page's URL fragment, if present. */
-export async function decodeDocFromLocationHash(): Promise<LoomDocument | null> {
+/**
+ * Reads document and mode from the current fragment. A link with a doc but
+ * no mode defaults to "present"; with no doc the result is null.
+ */
+export async function decodeShareFromLocationHash(): Promise<{ doc: LoomDocument; mode: LoomMode } | null> {
   if (!location.hash.startsWith(HASH_PREFIX)) return null;
-  const encoded = location.hash.slice(HASH_PREFIX.length);
+  const params = new URLSearchParams(location.hash.slice(1));
+  const encoded = params.get("doc");
   if (!encoded) return null;
   const compressed = base64UrlToBytes(encoded);
   const json = new TextDecoder().decode(await gunzip(compressed));
-  return JSON.parse(json) as LoomDocument;
+  const m = params.get("mode");
+  return { doc: JSON.parse(json) as LoomDocument, mode: isMode(m) ? m : "present" };
+}
+
+/** Back-compat: document only. */
+export async function decodeDocFromLocationHash(): Promise<LoomDocument | null> {
+  return (await decodeShareFromLocationHash())?.doc ?? null;
 }

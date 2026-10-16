@@ -28,6 +28,13 @@ export interface ArchNode {
   colorToken?: ArchNodeColorToken;
   /** Key into the icon registry (src/assets/icons/{icon}.svg), e.g. "aws-s3". */
   icon?: string;
+  /**
+   * Optional separate cell for the note illustration view (no lanes there,
+   * a fixed-width canvas). Unset = derived from the screen layout; see
+   * src/graph/noteCells.ts. Never affects the normal diagram.
+   */
+  noteCol?: number;
+  noteRow?: number;
   /** v1 only — row ordering hint inside a lane; consumed by normalize. */
   rowOrder?: number;
 }
