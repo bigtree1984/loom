@@ -178,6 +178,11 @@
 }
 
 .app-footer {
+  /* Decision choices stack upward past the footer's top edge; keep them
+     above the flow panel (React Flow's layers are z-indexed) so clicks
+     reach the buttons, not the pane underneath. */
+  position: relative;
+  z-index: 10;
   border-top: 1px solid var(--loom-border);
   background: var(--loom-panel-bg);
   height: 76px;
