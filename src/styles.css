@@ -741,3 +741,13 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+.edge-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.edge-toolbar .icon-button[aria-pressed="true"] {
+  background: var(--loom-c1);
+  color: #fff;
+}

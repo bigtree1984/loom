@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addEdge, moveColumn, removeEdgeAt, reverseEdgeAt } from "../gridEdits";
+import { addEdge, moveColumn, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt } from "../gridEdits";
 import { normalizeLoomDocument } from "../normalizeDocument";
 
 const base = () =>
@@ -48,5 +48,21 @@ describe("edge edits", () => {
   it("removes and reverses by index", () => {
     expect(removeEdgeAt(base(), 0).architecture.edges).toEqual([]);
     expect(reverseEdgeAt(base(), 0).architecture.edges).toEqual([{ from: "b", to: "a" }]);
+  });
+});
+
+describe("edge direction", () => {
+  it("cycles through forward / backward / both / none", () => {
+    const e = (d: ReturnType<typeof base>) => d.architecture.edges[0];
+    expect(e(setEdgeDirectionAt(base(), 0, "none"))).toEqual({ from: "a", to: "b", undirected: true });
+    expect(e(setEdgeDirectionAt(base(), 0, "both"))).toEqual({ from: "a", to: "b", bidirectional: true });
+    expect(e(setEdgeDirectionAt(base(), 0, "backward"))).toEqual({ from: "b", to: "a" });
+    const none = setEdgeDirectionAt(base(), 0, "none");
+    expect(e(setEdgeDirectionAt(none, 0, "forward"))).toEqual({ from: "a", to: "b" });
+  });
+  it("drawing over an undirected edge in either direction adds nothing", () => {
+    const none = setEdgeDirectionAt(base(), 0, "none");
+    expect(addEdge(none, "b", "a").architecture.edges).toHaveLength(1);
+    expect(addEdge(none, "a", "b").architecture.edges).toHaveLength(1);
   });
 });

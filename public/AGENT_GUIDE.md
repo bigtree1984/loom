@@ -70,11 +70,14 @@ carry a per-type colour dot.)
 ### ArchEdge
 
 Directed `from` → `to`: an arrowhead is drawn at `to`. Set
-`"bidirectional": true` to also draw one at `from`.
+`"bidirectional": true` to also draw one at `from`, or `"undirected": true`
+for a plain line with no arrowheads (an association with no before/after;
+it wins over `bidirectional`).
 
 ```jsonc
 { "from": "api", "to": "gemini_tts", "label": "音声生成を依頼" }
 { "from": "app", "to": "db", "bidirectional": true }
+{ "from": "auth", "to": "users", "undirected": true }
 ```
 
 ### Task

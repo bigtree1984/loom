@@ -103,7 +103,8 @@ export function moveColumn(doc: LoomDocument, from: number, to: number): LoomDoc
 export function addEdge(doc: LoomDocument, from: string, to: string): LoomDocument {
   const a = doc.architecture;
   if (from === to) return doc;
-  if (a.edges.some((e) => (e.from === from && e.to === to) || (e.bidirectional && e.from === to && e.to === from))) return doc;
+  if (a.edges.some((e) => (e.from === from && e.to === to) || ((e.bidirectional || e.undirected) && e.from === to && e.to === from)))
+    return doc;
   const reverse = a.edges.findIndex((e) => e.from === to && e.to === from);
   if (reverse >= 0) return withArch(doc, { edges: a.edges.map((e, i) => (i === reverse ? { ...e, bidirectional: true } : e)) });
   return withArch(doc, { edges: [...a.edges, { from, to }] });
@@ -118,4 +119,25 @@ export function reverseEdgeAt(doc: LoomDocument, index: number): LoomDocument {
   return withArch(doc, {
     edges: doc.architecture.edges.map((e, i) => (i === index ? { ...e, from: e.to, to: e.from } : e)),
   });
+}
+
+export type EdgeDirection = "forward" | "backward" | "both" | "none";
+
+/** Set an edge's arrow style. "backward" flips from/to so the stored edge
+ * stays a plain directed one. */
+export function setEdgeDirectionAt(doc: LoomDocument, index: number, dir: EdgeDirection): LoomDocument {
+  return withArch(doc, {
+    edges: doc.architecture.edges.map((e, i) => {
+      if (i !== index) return e;
+      const { bidirectional: _b, undirected: _u, ...rest } = e;
+      if (dir === "backward") return { ...rest, from: e.to, to: e.from };
+      if (dir === "both") return { ...rest, bidirectional: true };
+      if (dir === "none") return { ...rest, undirected: true };
+      return rest;
+    }),
+  });
+}
+
+export function edgeDirectionOf(e: { bidirectional?: boolean; undirected?: boolean }): Exclude<EdgeDirection, "backward"> {
+  return e.undirected ? "none" : e.bidirectional ? "both" : "forward";
 }

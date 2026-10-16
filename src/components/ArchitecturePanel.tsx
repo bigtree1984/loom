@@ -7,6 +7,7 @@ import type { LaneHeader, LaneTile } from "../graph/toArchitectureFlow";
 import { LoomLaneTile, type LoomLaneTileData } from "./LoomLaneTile";
 import { geometryFor, HEADER_Y } from "../graph/gridGeometry";
 import type { ArchLayout } from "../types";
+import type { EdgeDirection } from "../graph/gridEdits";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
 const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader, loomLaneTile: LoomLaneTile };
@@ -48,6 +49,7 @@ interface Props {
   onConnectNodes: (from: string, to: string) => void;
   onDeleteEdge: (index: number) => void;
   onReverseEdge: (index: number) => void;
+  onSetEdgeDirection: (index: number, dir: EdgeDirection) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onAddNode: () => void;
   onGroupDoubleClick: (groupId: string) => void;
@@ -72,6 +74,7 @@ export function ArchitecturePanel({
   onConnectNodes,
   onDeleteEdge,
   onReverseEdge,
+  onSetEdgeDirection,
   onNodeDoubleClick,
   onAddNode,
   onGroupDoubleClick,
@@ -306,9 +309,41 @@ export function ArchitecturePanel({
     <div className={`panel architecture-panel${picking ? " picking" : ""}`}>
       <div className="panel-header">
         <div className="panel-title">アーキテクチャ(空間)</div>
-        {!readOnly && selectedEdge !== null && (
-          <div className="panel-hint">選択中の線: Deleteで削除 / 右クリックで向きを反転 / Escで解除</div>
-        )}
+        {!readOnly && selectedEdge !== null && (() => {
+          const e = edges.find((x) => edgeIndexOf(x) === selectedEdge);
+          const current = !e ? null : !e.markerEnd ? "none" : e.markerStart ? "both" : "forward";
+          const opts: [EdgeDirection, string, string][] = [
+            ["forward", "→", "向きあり"],
+            ["backward", "⇄", "向きを反転"],
+            ["both", "↔", "両方向"],
+            ["none", "—", "向きなし"],
+          ];
+          return (
+            <div className="edge-toolbar" role="group" aria-label="選択中の線">
+              <span className="panel-hint">選択中の線:</span>
+              {opts.map(([dir, glyph, title]) => (
+                <button
+                  key={dir}
+                  className="icon-button"
+                  title={title}
+                  aria-label={title}
+                  aria-pressed={dir === current}
+                  onClick={() => onSetEdgeDirection(selectedEdge, dir)}
+                >
+                  {glyph}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  onDeleteEdge(selectedEdge);
+                  setSelectedEdge(null);
+                }}
+              >
+                削除
+              </button>
+            </div>
+          );
+        })()}
         {!readOnly && (
           <div className="panel-header-actions">
             <button onClick={onToggleLayout}>{layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>

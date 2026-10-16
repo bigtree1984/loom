@@ -7,7 +7,7 @@ import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
-import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, swapColumns } from "./graph/gridEdits";
+import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt, swapColumns, type EdgeDirection } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { applyThemeToRoot } from "./graph/theme";
@@ -217,6 +217,13 @@ function App() {
     [loom],
   );
 
+  const handleSetEdgeDirection = useCallback(
+    (index: number, dir: EdgeDirection) => {
+      if (loom.doc) loom.loadDocument(setEdgeDirectionAt(loom.doc, index, dir));
+    },
+    [loom],
+  );
+
   // Dropping a node snaps it to the nearest cell; if that cell is taken the
   // two nodes trade places, so a drop never stacks nodes.
   const handleNodeDragEnd = useCallback(
@@ -419,6 +426,7 @@ function App() {
                 onConnectNodes={handleConnectNodes}
                 onDeleteEdge={handleDeleteEdge}
                 onReverseEdge={handleReverseEdge}
+                onSetEdgeDirection={handleSetEdgeDirection}
                 onNodeDragEnd={handleNodeDragEnd}
                 onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
                 onAddNode={() => setEditor({ kind: "node", id: null })}

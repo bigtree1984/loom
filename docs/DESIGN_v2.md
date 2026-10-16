@@ -127,6 +127,7 @@ hex : x = col * HEX_W + (row % 2 ? HEX_W / 2 : 0)   // オフセット座標（�
 
 - アーキテクチャ側のエッジに矢印（`markerEnd`）を付ける
 - `bidirectional: true` のときは両端に矢印を付ける
+- `undirected: true` のときは矢印を付けない（前後を持たない関連。`bidirectional` より優先）
 - `LoomArchEdge` の浮動交点計算はそのまま使い、マーカーだけ足す
 - ハイライト中は矢印もルート色で塗る
 - プロセスフロー側はすでに矢印付きなので変更しない

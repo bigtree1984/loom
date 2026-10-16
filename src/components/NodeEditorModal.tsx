@@ -27,7 +27,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   );
   const [newEdgeTarget, setNewEdgeTarget] = useState("");
   const [newEdgeLabel, setNewEdgeLabel] = useState("");
-  const [newEdgeDir, setNewEdgeDir] = useState<"out" | "in" | "both">("out");
+  const [newEdgeDir, setNewEdgeDir] = useState<"out" | "in" | "both" | "none">("out");
   const [error, setError] = useState<string | null>(null);
 
   const otherNodes = doc.architecture.nodes.filter((n) => n.id !== nodeId);
@@ -40,7 +40,8 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
     const edge: ArchEdge =
       newEdgeDir === "in"
         ? { from: newEdgeTarget, to: selfId, label }
-        : { from: selfId, to: newEdgeTarget, label, ...(newEdgeDir === "both" ? { bidirectional: true } : {}) };
+        : { from: selfId, to: newEdgeTarget, label, ...(newEdgeDir === "both" ? { bidirectional: true } : {}),
+            ...(newEdgeDir === "none" ? { undirected: true } : {}) };
     setEdges((prev) => [...prev, edge]);
     setNewEdgeTarget("");
     setNewEdgeLabel("");
@@ -51,7 +52,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   };
 
   const otherEndOf = (e: ArchEdge, selfId: string) => (e.from === selfId ? e.to : e.from);
-  const arrowOf = (e: ArchEdge, selfId: string) => (e.bidirectional ? "↔" : e.from === selfId ? "→" : "←");
+  const arrowOf = (e: ArchEdge, selfId: string) => (e.undirected ? "—" : e.bidirectional ? "↔" : e.from === selfId ? "→" : "←");
   const labelOf = (id: string) => doc.architecture.nodes.find((n) => n.id === id)?.label ?? id;
 
   const handleSave = () => {
@@ -145,10 +146,11 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         );
       })}
       <div className="modal-add-conn">
-        <select value={newEdgeDir} onChange={(e) => setNewEdgeDir(e.target.value as "out" | "in" | "both")} aria-label="向き">
+        <select value={newEdgeDir} onChange={(e) => setNewEdgeDir(e.target.value as "out" | "in" | "both" | "none")} aria-label="向き">
           <option value="out">→</option>
           <option value="in">←</option>
           <option value="both">↔</option>
+          <option value="none">— (向きなし)</option>
         </select>
         <select value={newEdgeTarget} onChange={(e) => setNewEdgeTarget(e.target.value)}>
           <option value="">接続先を選択</option>

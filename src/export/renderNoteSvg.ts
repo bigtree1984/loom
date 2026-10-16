@@ -249,17 +249,17 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     const ux = (x2 - x1) / len;
     const uy = (y2 - y1) / len;
     // Leave room for the arrowhead so the line doesn't poke through it.
-    const head = Math.min(ARROW, len * 0.6);
+    const head = e.undirected ? 0 : Math.min(ARROW, len * 0.6);
     x2 -= ux * head;
     y2 -= uy * head;
-    if (e.bidirectional) {
+    if (e.bidirectional && !e.undirected) {
       x1 += ux * ARROW;
       y1 += uy * ARROW;
     }
     const m = markerFor(color);
     edgeSvg.push(
-      `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${active ? STROKE_MIN + 2 : STROKE_MIN}" stroke-linecap="round" marker-end="url(#${m})"${
-        e.bidirectional ? ` marker-start="url(#${m})"` : ""
+      `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${active ? STROKE_MIN + 2 : STROKE_MIN}" stroke-linecap="round"${e.undirected ? "" : ` marker-end="url(#${m})"`}${
+        e.bidirectional && !e.undirected ? ` marker-start="url(#${m})"` : ""
       }/>`,
     );
   });

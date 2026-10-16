@@ -48,6 +48,9 @@ export interface ArchEdge {
   label?: string;
   /** Also draw an arrowhead at `from` (two-way relationship). */
   bidirectional?: boolean;
+  /** No arrowheads at all: a plain association with no before/after.
+   * Takes precedence over `bidirectional`. */
+  undirected?: boolean;
 }
 
 /** A column header. Index in `columns` = the column's `col`. */

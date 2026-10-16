@@ -104,7 +104,7 @@ export function toArchitectureFlow(
     const routeIndex = edgeRouteIndex(highlightedArchNodes.get(e.from), highlightedArchNodes.get(e.to));
     const active = routeIndex !== null;
     const color = active ? routeColorFor(routeIndex!).edge : NEUTRAL_EDGE;
-    const edgeData: LoomEdgeData = { active, color, bidirectional: !!e.bidirectional };
+    const edgeData: LoomEdgeData = { active, color, bidirectional: !!e.bidirectional || !!e.undirected };
 
     return {
       id: `arch-edge-${i}-${e.from}-${e.to}`,
@@ -114,8 +114,8 @@ export function toArchitectureFlow(
       label: e.label,
       data: edgeData,
       style: { stroke: color, strokeWidth: active ? 2 : 1 },
-      markerEnd: { type: MarkerType.ArrowClosed, color },
-      ...(e.bidirectional ? { markerStart: { type: MarkerType.ArrowClosed, color } } : {}),
+      ...(e.undirected ? {} : { markerEnd: { type: MarkerType.ArrowClosed, color } }),
+      ...(e.bidirectional && !e.undirected ? { markerStart: { type: MarkerType.ArrowClosed, color } } : {}),
       labelStyle: { fontSize: 11, fill: "var(--loom-text-secondary)" },
     };
   });
