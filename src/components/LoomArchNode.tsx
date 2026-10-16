@@ -18,6 +18,8 @@ export interface LoomArchNodeData extends Record<string, unknown> {
   shape?: "rect" | "hex";
   borderColor?: string;
   borderWidth?: number;
+  /** Edit mode: show a grab point for drawing an edge out of this node. */
+  connectable?: boolean;
 }
 
 /** Pointy-top hexagon filling a w x h box, in a 0..100 viewBox. */
@@ -40,7 +42,11 @@ export function LoomArchNode({ data }: NodeProps) {
   return (
     <>
       <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
-      <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
+      {d.connectable ? (
+        <Handle type="source" position={Position.Right} className="loom-connect-handle" title="ドラッグして別のノードへ線を引く" />
+      ) : (
+        <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
+      )}
       {isHex && (
         <svg className="loom-arch-node-hex" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <polygon

@@ -78,3 +78,44 @@ export function nodesInColumn(doc: LoomDocument, id: string): number {
   const col = doc.architecture.columns.findIndex((c) => c.id === id);
   return col < 0 ? 0 : doc.architecture.nodes.filter((n) => n.col === col).length;
 }
+
+/** Move column `from` so it ends up at index `to` (headers and nodes
+ * together); the columns in between shift by one to make room. */
+export function moveColumn(doc: LoomDocument, from: number, to: number): LoomDocument {
+  const a = doc.architecture;
+  if (from < 0 || to < 0 || from === to) return doc;
+  const maxCol = Math.max(from, to, ...a.nodes.map((n) => n.col ?? 0));
+  const columns = paddedColumns(a, maxCol);
+  const order = columns.map((_, i) => i);
+  const [moved] = order.splice(from, 1);
+  order.splice(to, 0, moved);
+  // order[newIndex] = oldIndex
+  const newIndexOf = new Map(order.map((old, i) => [old, i]));
+  const nodes = a.nodes.map((n) => {
+    const next = newIndexOf.get(n.col ?? 0);
+    return next === undefined || next === n.col ? n : { ...n, col: next };
+  });
+  return withArch(doc, { columns: order.map((old) => columns[old]), nodes });
+}
+
+/** Add an edge from -> to. Self-loops and exact duplicates are ignored; if
+ * the reverse edge already exists it becomes two-way instead. */
+export function addEdge(doc: LoomDocument, from: string, to: string): LoomDocument {
+  const a = doc.architecture;
+  if (from === to) return doc;
+  if (a.edges.some((e) => (e.from === from && e.to === to) || (e.bidirectional && e.from === to && e.to === from))) return doc;
+  const reverse = a.edges.findIndex((e) => e.from === to && e.to === from);
+  if (reverse >= 0) return withArch(doc, { edges: a.edges.map((e, i) => (i === reverse ? { ...e, bidirectional: true } : e)) });
+  return withArch(doc, { edges: [...a.edges, { from, to }] });
+}
+
+export function removeEdgeAt(doc: LoomDocument, index: number): LoomDocument {
+  return withArch(doc, { edges: doc.architecture.edges.filter((_, i) => i !== index) });
+}
+
+/** Flip an edge's direction (a two-way edge stays two-way). */
+export function reverseEdgeAt(doc: LoomDocument, index: number): LoomDocument {
+  return withArch(doc, {
+    edges: doc.architecture.edges.map((e, i) => (i === index ? { ...e, from: e.to, to: e.from } : e)),
+  });
+}

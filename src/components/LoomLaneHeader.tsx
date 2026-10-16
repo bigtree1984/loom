@@ -8,6 +8,10 @@ export interface LoomLaneHeaderData extends Record<string, unknown> {
   onMoveRight: () => void;
   /** Present mode: label only, no reorder arrows. */
   readOnly?: boolean;
+  /** Pointer down on the label starts a lane drag (edit mode only). */
+  onDragStart?: (e: React.PointerEvent) => void;
+  /** This lane is the one being dragged. */
+  dragging?: boolean;
 }
 
 /**
@@ -22,7 +26,7 @@ export function LoomLaneHeader({ data }: NodeProps) {
     // (drag-detection on the node, pane panning) swallows the mouse event
     // before a real click ever reaches the buttons — only synthetic
     // .click() calls worked without this, actual mouse clicks didn't.
-    <div className="loom-lane-header nodrag nopan">
+    <div className={`loom-lane-header nodrag nopan${d.dragging ? " loom-lane-header-dragging" : ""}`}>
       {!d.readOnly && (
       <button
         className="loom-lane-header-arrow"
@@ -33,7 +37,13 @@ export function LoomLaneHeader({ data }: NodeProps) {
         ◀
       </button>
       )}
-      <span className="loom-lane-header-label">{d.label}</span>
+      <span
+        className={`loom-lane-header-label${d.readOnly ? "" : " loom-lane-header-grab"}`}
+        onPointerDown={d.readOnly ? undefined : d.onDragStart}
+        title={d.readOnly ? undefined : "ドラッグで左右に移動"}
+      >
+        {d.label}
+      </span>
       {!d.readOnly && (
       <button
         className="loom-lane-header-arrow"

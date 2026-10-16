@@ -45,6 +45,7 @@ function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight |
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
+  editable = false,
 ): { nodes: Node[]; edges: Edge[]; laneHeaders: LaneHeader[]; tiles: LaneTile[]; geometry: CellGeometry } {
   const layout = architecture.layout ?? "grid";
   const geometry = geometryFor(layout);
@@ -68,6 +69,7 @@ export function toArchitectureFlow(
       fullLabel: n.label,
       isHuman: n.type === "human",
       iconUrl: iconUrlFor(n.icon),
+      connectable: editable,
     };
     return {
       id: n.id,

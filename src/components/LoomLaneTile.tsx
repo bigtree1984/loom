@@ -4,6 +4,8 @@ export interface LoomLaneTileData extends Record<string, unknown> {
   shape: "rect" | "hex";
   /** Column parity: even columns use --loom-lane-a, odd --loom-lane-b. */
   odd: boolean;
+  /** Lane-drag insertion marker instead of a tint. */
+  marker?: boolean;
 }
 
 /** Same pointy-top outline as LoomArchNode's hex, in a 0..100 viewBox. */
@@ -17,6 +19,7 @@ const HEX_POINTS = "50,0 100,25 100,75 50,100 0,75 0,25";
  */
 export function LoomLaneTile({ data }: NodeProps) {
   const d = data as LoomLaneTileData;
+  if (d.marker) return <div style={{ width: "100%", height: "100%", background: "var(--loom-c1)", borderRadius: 2 }} />;
   const fill = d.odd ? "var(--loom-lane-b)" : "var(--loom-lane-a)";
   if (d.shape === "rect") return <div style={{ width: "100%", height: "100%", background: fill }} />;
   return (
