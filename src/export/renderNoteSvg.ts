@@ -1,5 +1,6 @@
 import type { ArchNodeColorToken, ArchNodeType, LoomDocument, Task } from "../types";
-import { noteGeometry, planTiers, type NoteCellGeometry } from "./noteLayout";
+import { noteCells, noteColumnCount } from "../graph/noteCells";
+import { NODE_LINE_H as NODE_LH, noteCellCenter, noteDiagramHeight, noteGeometry, type NoteCellGeometry } from "./noteLayout";
 import {
   CONTENT_W,
   FIGURE_WIDTH,
@@ -8,6 +9,7 @@ import {
   FONT_FAMILY,
   LINE_H_RATIO,
   MARGIN,
+  NODE_FONT,
   NOTE_COLORS as C,
   STROKE_MIN,
   noteRouteColor,
@@ -35,6 +37,8 @@ export interface NoteFigure {
   warnings: string[];
   /** Every character drawn, for font subsetting. */
   text: string;
+  /** Where the architecture diagram sits, so the note view can map pointer -> cell. */
+  diagram: { top: number; height: number; geometry: NoteCellGeometry };
 }
 
 const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
@@ -98,11 +102,8 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   const { doc, orderedTasks, highlight, stepTasks, stepLabel } = input;
   const arch = doc.architecture;
   const layout = arch.layout ?? "grid";
-  const columnCount = Math.max(arch.columns.length, ...arch.nodes.map((n) => (n.col ?? 0) + 1), 1);
-  const plan = planTiers(columnCount, layout);
-  // Don't let a 1-2 column diagram blow nodes up to half the page.
-  const g: NoteCellGeometry = noteGeometry(layout, Math.max(plan.colsPerTier, layout === "hex" ? 2 : 3));
-  const warnings = plan.warning ? [plan.warning] : [];
+  const g: NoteCellGeometry = noteGeometry(layout, noteColumnCount(layout));
+  const warnings: string[] = [];
 
   const svg = new Svg();
   let y = MARGIN;
@@ -136,88 +137,45 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     y += bandH + 48;
   }
 
-  // ---- Architecture, tier by tier --------------------------------------
+  // ---- Architecture: lane-less canvas placed by noteCells -------------
+  const diagramTop = y;
+  const cells = noteCells(arch);
+  const rows = Math.max(1, ...[...cells.values()].map((c) => c.row + 1));
   const centers = new Map<string, { x: number; y: number }>();
   const nodeSvg = new Svg();
   const edgeSvg: string[] = [];
-  const headerLines = plan.tiers.flatMap(([s, e]) =>
-    Array.from({ length: e - s }, (_, i) =>
-      wrapText(arch.columns[s + i]?.label ?? "", { maxEm: (g.pitchX - 16) / FONT_1, maxLines: 2 }),
-    ),
-  );
-  const headerH = Math.max(1, ...headerLines.map((l) => l.length)) * LH1 + 24;
-  const labelEm = g.textW / FONT_1;
+  const labelEm = g.textW / NODE_FONT;
 
-  plan.tiers.forEach(([start, end], ti) => {
-    const n = end - start;
-    const tierW = layout === "hex" ? (n + 0.5) * g.pitchX : n * g.pitchX;
-    const x0 = MARGIN + (CONTENT_W - tierW) / 2;
-    const tierNodes = arch.nodes.filter((nd) => (nd.col ?? 0) >= start && (nd.col ?? 0) < end);
-    // Drop empty leading rows (keep parity so hex offsets stay correct).
-    let minRow = Math.min(...tierNodes.map((nd) => nd.row ?? 0), Infinity);
-    minRow = Number.isFinite(minRow) ? minRow - (minRow % 2) : 0;
-    const rows = Math.max(1, ...tierNodes.map((nd) => (nd.row ?? 0) + 1 - minRow));
-    const top = y + headerH;
-    const bodyH = layout === "hex" ? (rows - 1) * g.pitchY + g.tileH : rows * g.pitchY;
-    const cellCenter = (col: number, absRow: number) => {
-      const row = absRow - minRow;
-      return {
-      x: x0 + (col - start + 0.5) * g.pitchX + (row % 2 === 1 ? g.oddRowShift : 0),
-      y: layout === "hex" ? top + g.tileH / 2 + row * g.pitchY : top + row * g.pitchY + g.pitchY / 2,
-      };
-    };
-
-    // Lane tints + column headers.
-    for (let c = start; c < end; c++) {
-      const fill = (c - start) % 2 === 0 ? C.laneA : C.laneB;
-      if (layout === "hex") {
-        for (let row = 0; row < rows; row++) {
-          const p = cellCenter(c, row + minRow);
-          svg.push(`<polygon points="${hexPoints(p.x, p.y, g.pitchX, g.tileH)}" fill="${fill}"/>`);
-        }
-      } else {
-        svg.push(`<rect x="${r(x0 + (c - start) * g.pitchX)}" y="${r(top)}" width="${r(g.pitchX)}" height="${r(bodyH)}" fill="${fill}"/>`);
-      }
-      const hl = headerLines[c] ?? [];
-      svg.lines(hl, x0 + (c - start + 0.5) * g.pitchX, y + FONT_1 * 0.85, {
-        size: FONT_1,
-        lh: LH1,
-        fill: C.textSub,
-        weight: 700,
-        anchor: "middle",
-      });
-    }
-
-    tierNodes.forEach((nd) => {
-      const p = cellCenter(nd.col ?? 0, nd.row ?? 0);
-      centers.set(nd.id, p);
-      const h = highlight?.get(nd.id);
-      const route = h ? noteRouteColor(h.routeIndex) : undefined;
-      const fill = h?.role === "main" ? route!.strong : h?.role === "io" ? route!.light : C.bg;
-      const stroke = route ? route.strong : C.border;
-      const textFill = h?.role === "main" ? route!.textOnStrong : C.text;
-      const shape =
-        layout === "hex"
-          ? `<polygon points="${hexPoints(p.x, p.y, g.nodeW, g.nodeH)}"`
-          : `<rect x="${r(p.x - g.nodeW / 2)}" y="${r(p.y - g.nodeH / 2)}" width="${r(g.nodeW)}" height="${r(g.nodeH)}" rx="18"`;
-      nodeSvg.push(`${shape} fill="${fill}" stroke="${stroke}" stroke-width="${STROKE_MIN}"/>`);
-      const dot = C.dots[nd.colorToken ?? COLOR_TOKEN_BY_TYPE[nd.type]];
-      const [dx, dy] =
-        layout === "hex" ? [p.x, p.y - g.nodeH / 2 + 34] : [p.x - g.nodeW / 2 + 4, p.y - g.nodeH / 2 + 4];
-      nodeSvg.push(`<circle cx="${r(dx)}" cy="${r(dy)}" r="14" fill="${dot}" stroke="${C.bg}" stroke-width="${STROKE_MIN}"/>`);
-      const lines = wrapText(nd.label, { maxEm: labelEm, maxLines: 2 });
-      const firstBaseline = p.y - ((lines.length - 1) * LH1) / 2 + FONT_1 * 0.36;
-      nodeSvg.lines(lines, p.x, firstBaseline, {
-        size: FONT_1,
-        lh: LH1,
-        fill: textFill,
-        weight: h?.role === "main" ? 700 : 500,
-        anchor: "middle",
-      });
+  arch.nodes.forEach((nd) => {
+    const cell = cells.get(nd.id);
+    if (!cell) return;
+    const p = noteCellCenter(g, cell, diagramTop);
+    centers.set(nd.id, p);
+    const h = highlight?.get(nd.id);
+    const route = h ? noteRouteColor(h.routeIndex) : undefined;
+    const fill = h?.role === "main" ? route!.strong : h?.role === "io" ? route!.light : C.bg;
+    const stroke = route ? route.strong : C.border;
+    const textFill = h?.role === "main" ? route!.textOnStrong : C.text;
+    const shape =
+      layout === "hex"
+        ? `<polygon points="${hexPoints(p.x, p.y, g.nodeW, g.nodeH)}"`
+        : `<rect x="${r(p.x - g.nodeW / 2)}" y="${r(p.y - g.nodeH / 2)}" width="${r(g.nodeW)}" height="${r(g.nodeH)}" rx="18"`;
+    nodeSvg.push(`${shape} fill="${fill}" stroke="${stroke}" stroke-width="${STROKE_MIN}"/>`);
+    const dot = C.dots[nd.colorToken ?? COLOR_TOKEN_BY_TYPE[nd.type]];
+    const [dx, dy] =
+      layout === "hex" ? [p.x, p.y - g.nodeH / 2 + 34] : [p.x - g.nodeW / 2 + 4, p.y - g.nodeH / 2 + 4];
+    nodeSvg.push(`<circle cx="${r(dx)}" cy="${r(dy)}" r="14" fill="${dot}" stroke="${C.bg}" stroke-width="${STROKE_MIN}"/>`);
+    const lines = wrapText(nd.label, { maxEm: labelEm, maxLines: 2 });
+    const firstBaseline = p.y - ((lines.length - 1) * NODE_LH) / 2 + NODE_FONT * 0.36;
+    nodeSvg.lines(lines, p.x, firstBaseline, {
+      size: NODE_FONT,
+      lh: NODE_LH,
+      fill: textFill,
+      weight: h?.role === "main" ? 700 : 500,
+      anchor: "middle",
     });
-
-    y = top + bodyH + (ti < plan.tiers.length - 1 ? 56 : 0);
   });
+  y = diagramTop + noteDiagramHeight(g, rows);
 
   // ---- Edges (drawn under nodes) ----------------------------------------
   const hw = g.nodeW / 2 + 4;
@@ -307,5 +265,12 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     ...svg.parts,
     `</svg>`,
   ].join("\n");
-  return { svg: out, width: FIGURE_WIDTH, height, warnings, text: svg.text };
+  return {
+    svg: out,
+    width: FIGURE_WIDTH,
+    height,
+    warnings,
+    text: svg.text,
+    diagram: { top: diagramTop, height: noteDiagramHeight(g, rows), geometry: g },
+  };
 }

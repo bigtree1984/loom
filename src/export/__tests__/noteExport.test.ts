@@ -3,8 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeLoomDocument } from "../../graph/normalizeDocument";
 import type { LoomDocument, LoomDocumentInput } from "../../types";
-import { labelCharsPerLine, maxColsPerTier, MIN_LABEL_CHARS, planTiers } from "../noteLayout";
-import { FONT_1, MAX_CHARS_PER_LINE } from "../noteSpec";
+import { noteCellAt, noteCellCenter, noteGeometry } from "../noteLayout";
+import { FONT_1, MAX_CHARS_PER_LINE, NODE_FONT } from "../noteSpec";
+import { moveNodeToNoteCell } from "../../graph/noteCells";
 import { renderNoteFigure } from "../renderNoteSvg";
 import { stepOrder } from "../stepOrder";
 import { textEm, wrapText } from "../textWrap";
@@ -29,23 +30,63 @@ describe("wrapText", () => {
   });
 });
 
-describe("tier planning", () => {
-  it("is derived from the 44px / 4-char measurement", () => {
-    expect(labelCharsPerLine("grid", maxColsPerTier("grid"))).toBeGreaterThanOrEqual(MIN_LABEL_CHARS);
-    expect(labelCharsPerLine("grid", maxColsPerTier("grid") + 1)).toBeLessThan(MIN_LABEL_CHARS);
-    expect(maxColsPerTier("grid")).toBe(4);
-    expect(maxColsPerTier("hex")).toBe(3);
+describe("wrapText keeps Latin words together", () => {
+  // 202.5px label box at 38px = the grid node of a 4-column note canvas.
+  const box = { maxEm: noteGeometry("grid", 4).textW / NODE_FONT, maxLines: 2 };
+  it("does not split CloudFront / DynamoDB mid-word", () => {
+    expect(wrapText("CloudFront", box)).toEqual(["CloudFront"]);
+    expect(wrapText("DynamoDB テーブル", box)).toEqual(["DynamoDB", "テーブル"]);
+    expect(wrapText("Amazon CloudFront", box)).toEqual(["Amazon", "CloudFront"]);
   });
-  it("splits evenly and warns", () => {
-    expect(planTiers(4, "grid")).toEqual({ tiers: [[0, 4]], colsPerTier: 4, warning: undefined });
-    const six = planTiers(6, "grid");
-    expect(six.tiers).toEqual([
-      [0, 3],
-      [3, 6],
-    ]);
-    expect(six.warning).toMatch(/2段/);
-    expect(planTiers(9, "grid").tiers).toHaveLength(3);
-    expect(planTiers(9, "grid").warning).toMatch(/3段/);
+  it("moves a word that does not fit the rest of the line to the next line", () => {
+    expect(wrapText("画像をCloudFront", box)).toEqual(["画像を", "CloudFront"]);
+  });
+  it("breaks a single word only when it is wider than a line, ellipsizing the last line", () => {
+    const out = wrapText("ApplicationLoadBalancerControllerService", box);
+    expect(out).toHaveLength(2);
+    expect(out[1].endsWith("…")).toBe(true);
+    out.forEach((l) => expect(textEm(l)).toBeLessThanOrEqual(box.maxEm + 1e-6));
+  });
+});
+
+describe("note canvas geometry", () => {
+  it("is 4 grid / 3 hex columns filling the 1144px content width", () => {
+    expect(noteGeometry("grid", 4).pitchX * 4).toBeCloseTo(1144);
+    expect(noteGeometry("hex", 3).pitchX * 3.5).toBeCloseTo(1144);
+  });
+  it.each(["grid", "hex"] as const)("%s: noteCellAt inverts noteCellCenter", (layout) => {
+    const g = noteGeometry(layout, layout === "hex" ? 3 : 4);
+    for (let row = 0; row < 4; row++)
+      for (let col = 0; col < g.cols; col++) {
+        const p = noteCellCenter(g, { col, row }, 300);
+        expect(noteCellAt(g, p.x + 10, p.y - 10, 300)).toEqual({ col, row });
+      }
+  });
+});
+
+describe("renderNoteFigure without lanes", () => {
+  const doc: LoomDocument = normalizeLoomDocument({
+    architecture: {
+      columns: Array.from({ length: 7 }, (_, i) => ({ id: `c${i}`, label: `LANE${i}` })),
+      nodes: Array.from({ length: 7 }, (_, i) => ({ id: `n${i}`, label: `Node${i}`, type: "backend", col: i, row: 0 })),
+      edges: [{ from: "n0", to: "n6" }],
+    },
+    flow: { tasks: [], connections: [] },
+  });
+  it("draws no column headers and warns about nothing for wide diagrams", () => {
+    const fig = renderNoteFigure({ doc, orderedTasks: [] });
+    expect(fig.svg).not.toMatch(/LANE/);
+    expect(fig.warnings).toEqual([]);
+    expect(fig.svg).toMatch(/font-size="38"/);
+  });
+  it("places nodes by note cell, and a note move never touches col/row", () => {
+    const moved = moveNodeToNoteCell(doc, "n6", 0, 3);
+    expect(moved.architecture.nodes.map((n) => [n.col, n.row])).toEqual(doc.architecture.nodes.map((n) => [n.col, n.row]));
+    const fig = renderNoteFigure({ doc: moved, orderedTasks: [] });
+    const g = fig.diagram.geometry;
+    const c = noteCellCenter(g, { col: 0, row: 3 }, fig.diagram.top);
+    expect(fig.svg).toContain(`x="${Math.round((c.x - g.nodeW / 2) * 10) / 10}" y="${Math.round((c.y - g.nodeH / 2) * 10) / 10}"`);
+    expect(fig.diagram.height).toBeCloseTo(4 * g.pitchY);
   });
 });
 
@@ -73,13 +114,14 @@ describe("renderNoteFigure on bundled samples", () => {
   const files = ["samples", "src/sample-data"].flatMap((d) =>
     fs.readdirSync(path.join(root, d)).filter((f) => f.endsWith(".json")).map((f) => path.join(root, d, f)),
   );
-  it.each(files)("%s: 1240px, no text under 44px", (file) => {
+  it.each(files)("%s: 1240px, node labels 38px, all other text >= 44px", (file) => {
     const doc = normalizeLoomDocument(JSON.parse(fs.readFileSync(file, "utf-8")) as LoomDocumentInput);
     const ordered = stepOrder(doc.flow);
     const fig = renderNoteFigure({ doc, orderedTasks: ordered, stepTasks: ordered.slice(0, 1), stepLabel: "STEP 1" });
     expect(fig.width).toBe(1240);
     const sizes = [...fig.svg.matchAll(/font-size="(\d+)"/g)].map((m) => Number(m[1]));
-    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(FONT_1);
+    expect(Math.min(...sizes)).toBe(NODE_FONT);
+    expect(Math.min(...sizes.filter((s) => s !== NODE_FONT))).toBeGreaterThanOrEqual(FONT_1);
     const widths = [...fig.svg.matchAll(/stroke-width="(\d+)"/g)].map((m) => Number(m[1]));
     expect(Math.min(...widths)).toBeGreaterThanOrEqual(6);
     expect(fig.svg).not.toMatch(/var\(--/);

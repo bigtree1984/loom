@@ -9,6 +9,12 @@ export const CONTENT_W = FIGURE_WIDTH - MARGIN * 2;
 export const STROKE_MIN = 6;
 /** --figure-1: the smallest text allowed (12.2px on a phone). */
 export const FONT_1 = 44;
+/**
+ * Node labels inside the architecture diagram: an explicit exception to the
+ * 44px floor (agreed with the user) so 4 grid / 3 hex columns fit 1240px.
+ * Everything else stays >= FONT_1.
+ */
+export const NODE_FONT = 38;
 /** --figure-2: standard label. */
 export const FONT_2 = 58;
 export const LINE_H_RATIO = 1.25;

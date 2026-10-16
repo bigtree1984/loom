@@ -1,6 +1,6 @@
 import type { LoomDocument, Task } from "../types";
 import { figureToPng } from "./rasterize";
-import { renderNoteFigure, type NoteHighlight } from "./renderNoteSvg";
+import { renderNoteFigure, type NoteFigureInput, type NoteHighlight } from "./renderNoteSvg";
 import { stepOrder } from "./stepOrder";
 
 export interface ExportFile {
@@ -36,6 +36,25 @@ export async function exportOverview(doc: LoomDocument): Promise<ExportResult> {
   return { files: [{ name: "loom_overview.png", blob: png.blob }], warnings };
 }
 
+/**
+ * The one place that decides what the 現在のステップ figure contains. The
+ * note view renders exactly this input with renderNoteFigure, so the
+ * on-screen canvas and the exported PNG come from the same SVG string.
+ * No current task -> overview figure.
+ */
+export function currentFigureInput(doc: LoomDocument, currentTasks: Task[], highlight: NoteHighlight): NoteFigureInput {
+  const ordered = stepOrder(doc.flow);
+  if (currentTasks.length === 0) return { doc, orderedTasks: ordered };
+  const idx = ordered.findIndex((t) => t.id === currentTasks[0]?.id);
+  return {
+    doc,
+    orderedTasks: ordered,
+    highlight,
+    stepTasks: currentTasks,
+    stepLabel: idx >= 0 ? `STEP ${idx + 1} / ${ordered.length}` : undefined,
+  };
+}
+
 export async function exportCurrentStep(
   doc: LoomDocument,
   currentTasks: Task[],
@@ -43,13 +62,7 @@ export async function exportCurrentStep(
 ): Promise<ExportResult> {
   const ordered = stepOrder(doc.flow);
   const idx = ordered.findIndex((t) => t.id === currentTasks[0]?.id);
-  const fig = renderNoteFigure({
-    doc,
-    orderedTasks: ordered,
-    highlight,
-    stepTasks: currentTasks,
-    stepLabel: idx >= 0 ? `STEP ${idx + 1} / ${ordered.length}` : undefined,
-  });
+  const fig = renderNoteFigure(currentFigureInput(doc, currentTasks, highlight));
   const png = await figureToPng(fig);
   const warnings = [...fig.warnings];
   if (!png.fontEmbedded) warnings.push(FONT_WARNING);

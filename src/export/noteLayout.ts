@@ -1,15 +1,19 @@
 import { geometryFor } from "../graph/gridGeometry";
+import type { NoteCell } from "../graph/noteCells";
 import type { ArchLayout } from "../types";
-import { CONTENT_W, FONT_1 } from "./noteSpec";
+import { CONTENT_W, LINE_H_RATIO, MARGIN, NODE_FONT } from "./noteSpec";
 
 /**
  * Cell geometry scaled to note size. Same cell model as gridGeometry
  * (integer col/row; hex = offset coords, odd rows shifted half a pitch,
- * rows interlocking at sqrt(3)/2 pitch) but the pitch is chosen so that a
- * tier's columns exactly fill the 1144px content width.
+ * rows interlocking at sqrt(3)/2 pitch) but the pitch is chosen so that
+ * `cols` columns exactly fill the 1144px content width. The note canvas is
+ * always noteColumnCount(layout) wide and grows downward; there is no tier
+ * splitting — the user arranges the cells in the note view.
  */
 export interface NoteCellGeometry {
   layout: ArchLayout;
+  cols: number;
   pitchX: number;
   pitchY: number;
   nodeW: number;
@@ -17,26 +21,25 @@ export interface NoteCellGeometry {
   /** Usable label width inside a node, px. */
   textW: number;
   oddRowShift: number;
-  /** hex: background tile height. */
+  /** hex: height of one pitch-sized hex (vertical extent of a row). */
   tileH: number;
 }
 
-/** A node label must fit at least this many full-width chars per line at 44px. */
-export const MIN_LABEL_CHARS = 4;
 const GRID_NODE_RATIO = 0.82; // node width / pitch; the rest is the arrow gap
-const GRID_TEXT_PAD = 16;
+const GRID_TEXT_PAD = 14;
 const HEX_TEXT_PAD = 14;
-const LABEL_LINE_H = 54;
+export const NODE_LINE_H = Math.round(NODE_FONT * LINE_H_RATIO);
 
-export function noteGeometry(layout: ArchLayout, colsPerTier: number): NoteCellGeometry {
+export function noteGeometry(layout: ArchLayout, cols: number): NoteCellGeometry {
   if (layout === "hex") {
     const base = geometryFor("hex");
-    // Odd rows stick out half a pitch, so a tier spans n + 0.5 pitches.
-    const pitchX = CONTENT_W / (colsPerTier + 0.5);
+    // Odd rows stick out half a pitch, so the canvas spans n + 0.5 pitches.
+    const pitchX = CONTENT_W / (cols + 0.5);
     const nodeW = pitchX * (base.nodeW / base.pitchX);
     const nodeH = (nodeW * 2) / Math.sqrt(3);
     return {
       layout,
+      cols,
       pitchX,
       pitchY: (pitchX * Math.sqrt(3)) / 2,
       nodeW,
@@ -46,11 +49,12 @@ export function noteGeometry(layout: ArchLayout, colsPerTier: number): NoteCellG
       tileH: (pitchX * 2) / Math.sqrt(3),
     };
   }
-  const pitchX = CONTENT_W / colsPerTier;
+  const pitchX = CONTENT_W / cols;
   const nodeW = pitchX * GRID_NODE_RATIO;
-  const nodeH = LABEL_LINE_H * 2 + 32; // two lines of 44px + padding
+  const nodeH = NODE_LINE_H * 2 + 40; // two label lines + padding
   return {
     layout,
+    cols,
     pitchX,
     pitchY: nodeH + 48,
     nodeW,
@@ -61,45 +65,26 @@ export function noteGeometry(layout: ArchLayout, colsPerTier: number): NoteCellG
   };
 }
 
-/** Full-width characters per label line at 44px for `colsPerTier` columns. */
-export function labelCharsPerLine(layout: ArchLayout, colsPerTier: number): number {
-  return Math.floor(noteGeometry(layout, colsPerTier).textW / FONT_1);
+/** Height of a diagram with `rows` rows (at least one row). */
+export function noteDiagramHeight(g: NoteCellGeometry, rows: number): number {
+  const n = Math.max(1, rows);
+  return g.layout === "hex" ? (n - 1) * g.pitchY + g.tileH : n * g.pitchY;
 }
 
-/**
- * Most columns one tier can hold while labels still get MIN_LABEL_CHARS
- * per line at 44px — measured from the geometry, not a fixed count.
- * grid: 4 (5 would leave 3 chars), hex: 3.
- */
-export function maxColsPerTier(layout: ArchLayout): number {
-  let n = 1;
-  while (labelCharsPerLine(layout, n + 1) >= MIN_LABEL_CHARS) n++;
-  return n;
+/** Center of a cell, with the diagram's top edge at `top` (x starts at MARGIN). */
+export function noteCellCenter(g: NoteCellGeometry, cell: NoteCell, top: number): { x: number; y: number } {
+  const shift = cell.row % 2 === 1 ? g.oddRowShift : 0;
+  return {
+    x: MARGIN + (cell.col + 0.5) * g.pitchX + shift,
+    y: g.layout === "hex" ? top + g.tileH / 2 + cell.row * g.pitchY : top + cell.row * g.pitchY + g.pitchY / 2,
+  };
 }
 
-export interface TierPlan {
-  /** [startCol, endCol) per tier. */
-  tiers: Array<[number, number]>;
-  colsPerTier: number;
-  warning?: string;
-}
-
-/**
- * Splits columns into stacked tiers of equal width. 2 tiers is the
- * expected overflow case (§6); more are allowed but flagged harder.
- */
-export function planTiers(columnCount: number, layout: ArchLayout): TierPlan {
-  const max = maxColsPerTier(layout);
-  const count = Math.max(1, columnCount);
-  const tierCount = Math.ceil(count / max);
-  const colsPerTier = Math.ceil(count / tierCount);
-  const tiers: Array<[number, number]> = [];
-  for (let s = 0; s < count; s += colsPerTier) tiers.push([s, Math.min(count, s + colsPerTier)]);
-  let warning: string | undefined;
-  if (tierCount === 2) {
-    warning = `列が${count}列あり、文字44pxでは1段(最大${max}列)に収まらないため2段組にしました。`;
-  } else if (tierCount > 2) {
-    warning = `列が${count}列あり、${tierCount}段組になりました。note用には列を減らすか図を分けることをおすすめします。`;
-  }
-  return { tiers, colsPerTier, warning };
+/** Inverse of noteCellCenter: nearest cell to a point (clamped to the canvas width, row >= 0). */
+export function noteCellAt(g: NoteCellGeometry, x: number, y: number, top: number): NoteCell {
+  const rowF = g.layout === "hex" ? (y - top - g.tileH / 2) / g.pitchY : (y - top - g.pitchY / 2) / g.pitchY;
+  const row = Math.max(0, Math.round(rowF));
+  const shift = row % 2 === 1 ? g.oddRowShift : 0;
+  const col = Math.round((x - MARGIN - shift) / g.pitchX - 0.5);
+  return { col: Math.max(0, Math.min(g.cols - 1, col)), row };
 }
