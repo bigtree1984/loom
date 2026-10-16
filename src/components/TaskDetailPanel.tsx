@@ -4,15 +4,21 @@ import { routeColorFor } from "../graph/routeColors";
 interface Props {
   /** false = nothing loaded yet; true with no tasks = step highlight cleared. */
   hasDoc?: boolean;
+  /** Document has no tasks yet (e.g. right after 新規作成). */
+  isEmptyDoc?: boolean;
   tasks: Task[];
   routeColorByTask: Map<string, number>;
 }
 
-export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true }: Props) {
+export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true, isEmptyDoc = false }: Props) {
   if (tasks.length === 0) {
     return (
       <div className="task-detail empty">
-        {hasDoc ? "タスクをクリックするか「次へ」で再生を始めます" : "JSONを読み込んでください"}
+        {!hasDoc
+          ? "JSONを読み込んでください"
+          : isEmptyDoc
+            ? "「+ノード追加」「+タスク追加」で作り始めます"
+            : "タスクをクリックするか「次へ」で再生を始めます"}
       </div>
     );
   }

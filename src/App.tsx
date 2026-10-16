@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
@@ -102,6 +102,15 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [pick, finishPick]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [menuOpen]);
   const present = mode === "present";
   const note = mode === "note";
 
@@ -248,6 +257,11 @@ function App() {
   }, [loom.doc, loom.archNodesById, loom.displayPosition, loom.routeColorByTask]);
 
   const handleLoadSample = useCallback(() => loom.loadDocument(SAMPLE), [loom]);
+  // 新規作成: an empty document. No confirm — 元に戻す brings the old one back.
+  const handleNewDocument = useCallback(
+    () => loom.loadDocument({ version: 2, architecture: { layout: "grid", columns: [], nodes: [], edges: [] }, flow: { tasks: [], connections: [] } }),
+    [loom],
+  );
 
   const handleEditorSave = useCallback(
     (updated: LoomDocument) => {
@@ -281,49 +295,71 @@ function App() {
           <p className="app-tagline">空間という経糸に、時間という緯糸を通す。</p>
         </div>
         <div className="app-header-actions">
-          {present ? (
-            <div className="menu-wrap">
-              <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
-                メニュー
+          {!present && (
+            <>
+              <button onClick={handleNewDocument} title="何も配置していない図を開く(元に戻すで復元できます)">
+                新規作成
               </button>
-              {menuOpen && (
-                <div className="menu-dropdown">
+              <span className="icon-button-group">
+                <button className="icon-button" onClick={loom.undoEdit} disabled={!loom.canUndoEdit} aria-label="元に戻す" title="元に戻す">
+                  ↶
+                </button>
+                <button className="icon-button" onClick={loom.redoEdit} disabled={!loom.canRedoEdit} aria-label="やり直す" title="やり直す">
+                  ↷
+                </button>
+              </span>
+            </>
+          )}
+          <div className="menu-wrap" ref={menuRef}>
+            <button className="icon-button" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="メニュー" title="メニュー">
+              ☰
+            </button>
+            {/* Kept mounted while closed so the file input's change event
+                still lands after the OS file dialog closes the menu. */}
+            <div className="menu-dropdown" hidden={!menuOpen}>
+              {present && (
+                <>
                   <button onClick={loom.undoEdit} disabled={!loom.canUndoEdit}>
                     元に戻す
                   </button>
                   <button onClick={loom.redoEdit} disabled={!loom.canRedoEdit}>
                     やり直す
                   </button>
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setEditor({ kind: "json" });
-                    }}
-                    disabled={!loom.doc}
-                  >
-                    JSONを表示/編集
-                  </button>
-                  <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
-                </div>
+                </>
               )}
-            </div>
-          ) : (
-            <>
-              <button onClick={loom.undoEdit} disabled={!loom.canUndoEdit}>
-                元に戻す
-              </button>
-              <button onClick={loom.redoEdit} disabled={!loom.canRedoEdit}>
-                やり直す
-              </button>
-              <button onClick={() => setEditor({ kind: "json" })} disabled={!loom.doc}>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setEditor({ kind: "json" });
+                }}
+                disabled={!loom.doc}
+              >
                 JSONを表示/編集
               </button>
-              <JsonUploader onLoad={loom.loadDocument} onLoadSample={handleLoadSample} />
-            </>
-          )}
-          <button onClick={() => setShareDialogOpen(true)} disabled={!loom.doc}>
-            共有リンクをコピー
-          </button>
+              <JsonUploader
+                onLoad={(d) => {
+                  setMenuOpen(false);
+                  loom.loadDocument(d);
+                }}
+                onLoadSample={() => {
+                  setMenuOpen(false);
+                  handleLoadSample();
+                }}
+              />
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShareDialogOpen(true);
+                }}
+                disabled={!loom.doc}
+              >
+                共有リンクをコピー
+              </button>
+              <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
+                エージェント向け仕様
+              </a>
+            </div>
+          </div>
           <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
           <div className="mode-switch" role="group" aria-label="モード">
             {(
@@ -338,9 +374,6 @@ function App() {
               </button>
             ))}
           </div>
-          <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
-            エージェント向け仕様
-          </a>
           {(autoloadStatus || shareStatus) && (
             <span className="autoload-status">{autoloadStatus ?? shareStatus}</span>
           )}
@@ -399,7 +432,7 @@ function App() {
               />
             </ReactFlowProvider>
           )}
-          <TaskDetailPanel hasDoc={!!loom.doc} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
+          <TaskDetailPanel hasDoc={!!loom.doc} isEmptyDoc={!!loom.doc && loom.doc.flow.tasks.length === 0} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
         </div>
       </div>
 

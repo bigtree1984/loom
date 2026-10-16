@@ -20,6 +20,10 @@
   align-items: center;
   gap: 12px;
 }
+.app-header-actions > button,
+.menu-dropdown button {
+  white-space: nowrap;
+}
 
 .agent-guide-link {
   font-size: 12px;
@@ -530,6 +534,22 @@
 /* Present/edit mode */
 .menu-wrap {
   position: relative;
+}
+.menu-dropdown[hidden] {
+  display: none;
+}
+.icon-button-group {
+  display: inline-flex;
+  gap: 4px;
+}
+.icon-button {
+  min-width: 36px;
+  padding: 6px 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+.menu-dropdown .agent-guide-link {
+  padding: 4px 2px;
 }
 
 .menu-dropdown {
