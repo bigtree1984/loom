@@ -1,5 +1,5 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
-import type { ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
+import type { LoomDocument } from "../types";
 import { cellToPixel, columnX, geometryFor, HEADER_Y, laneTileRect, type CellGeometry } from "./gridGeometry";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
@@ -10,17 +10,6 @@ import type { LoomArchNodeData } from "../components/LoomArchNode";
 
 const MAX_LABEL_CHARS_PER_LINE = 12;
 
-/** Dot color when a node doesn't specify `colorToken` explicitly — keeps
- * old JSON (authored before colorToken existed) showing a sensible dot
- * derived from its semantic type. */
-const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
-  frontend: "color_1",
-  backend: "color_2",
-  agent: "color_3",
-  storage: "color_4",
-  human: "color_5",
-  spacer: "color_1", // v1-only type; normalize drops spacers
-};
 
 const NEUTRAL_BORDER = "var(--loom-border)";
 const NEUTRAL_EDGE = "var(--loom-neutral-border)";
@@ -65,7 +54,6 @@ export function toArchitectureFlow(
     const highlight = highlightedArchNodes.get(n.id);
     const isMain = highlight?.role === "main";
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;
-    const colorToken = n.colorToken ?? COLOR_TOKEN_BY_TYPE[n.type];
     const isHex = layout === "hex";
     const borderWidth = isMain ? 2 : 1;
     // Hex: hand the full label to CSS (2-line clamp with ellipsis) so the
@@ -78,7 +66,7 @@ export function toArchitectureFlow(
       borderColor,
       borderWidth,
       fullLabel: n.label,
-      dotColor: `var(--loom-dot-${colorToken.slice("color_".length)})`,
+      isHuman: n.type === "human",
       iconUrl: iconUrlFor(n.icon),
     };
     return {

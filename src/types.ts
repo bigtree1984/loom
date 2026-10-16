@@ -24,7 +24,9 @@ export interface ArchNode {
    * same field for their lane, so it doubles as the migration path.
    */
   group?: string;
-  /** Dot color; falls back to a type-based default when omitted. */
+  /** @deprecated Accepted for old documents, ignored: the category dot was
+   * removed (lane tint already groups nodes, and the dot reused the route
+   * highlight hues). */
   colorToken?: ArchNodeColorToken;
   /** Key into the icon registry (src/assets/icons/{icon}.svg), e.g. "aws-s3". */
   icon?: string;

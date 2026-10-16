@@ -1,4 +1,5 @@
-import type { ArchNodeColorToken, ArchNodeType, LoomDocument, Task } from "../types";
+import type { LoomDocument, Task } from "../types";
+import { PERSON_GLYPH_PATHS } from "../assets/personGlyph";
 import { noteCells, noteColumnCount } from "../graph/noteCells";
 import { NODE_LINE_H as NODE_LH, noteCellCenter, noteDiagramHeight, noteGeometry, type NoteCellGeometry } from "./noteLayout";
 import {
@@ -42,14 +43,6 @@ export interface NoteFigure {
   diagram: { top: number; height: number; geometry: NoteCellGeometry };
 }
 
-const COLOR_TOKEN_BY_TYPE: Record<ArchNodeType, ArchNodeColorToken> = {
-  frontend: "color_1",
-  backend: "color_2",
-  agent: "color_3",
-  storage: "color_4",
-  human: "color_5",
-  spacer: "color_1",
-};
 
 const LH1 = Math.round(FONT_1 * LINE_H_RATIO);
 const LH2 = Math.round(FONT_2 * LINE_H_RATIO);
@@ -200,10 +193,18 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
         ? `<polygon points="${hexPoints(p.x, p.y, g.nodeW, g.nodeH)}"`
         : `<rect x="${r(p.x - g.nodeW / 2)}" y="${r(p.y - g.nodeH / 2)}" width="${r(g.nodeW)}" height="${r(g.nodeH)}" rx="18"`;
     nodeSvg.push(`${shape} fill="${fill}" stroke="${stroke}" stroke-width="${STROKE_MIN}"/>`);
-    const dot = C.dots[nd.colorToken ?? COLOR_TOKEN_BY_TYPE[nd.type]];
-    const [dx, dy] =
-      layout === "hex" ? [p.x, p.y - g.nodeH / 2 + 34] : [p.x - g.nodeW / 2 + 4, p.y - g.nodeH / 2 + 4];
-    nodeSvg.push(`<circle cx="${r(dx)}" cy="${r(dy)}" r="14" fill="${dot}" stroke="${C.bg}" stroke-width="${STROKE_MIN}"/>`);
+    if (nd.type === "human") {
+      // Person badge on the node's corner (shape, not colour — see personGlyph.ts).
+      const [bx, by] =
+        layout === "hex" ? [p.x, p.y - g.nodeH / 2 + 40] : [p.x - g.nodeW / 2 + 6, p.y - g.nodeH / 2 + 6];
+      const s = 2.2; // 24-unit glyph -> ~53px badge
+      nodeSvg.push(
+        `<circle cx="${r(bx)}" cy="${r(by)}" r="28" fill="${C.bg}" stroke="${C.border}" stroke-width="${STROKE_MIN}"/>` +
+          `<g transform="translate(${r(bx - 12 * s)} ${r(by - 12 * s)}) scale(${s})" fill="${C.textSub}">` +
+          `<circle cx="${PERSON_GLYPH_PATHS.head.cx}" cy="${PERSON_GLYPH_PATHS.head.cy}" r="${PERSON_GLYPH_PATHS.head.r}"/>` +
+          `<path d="${PERSON_GLYPH_PATHS.body}"/></g>`,
+      );
+    }
     const lines = wrapText(nd.label, { maxEm: labelEm, maxLines: 2 });
     const firstBaseline = p.y - ((lines.length - 1) * NODE_LH) / 2 + NODE_FONT * 0.36;
     nodeSvg.lines(lines, p.x, firstBaseline, {

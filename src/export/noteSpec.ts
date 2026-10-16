@@ -36,7 +36,6 @@ export const NOTE_COLORS = {
   laneA: "#EBEEEC", // accent5 32% into white
   laneB: "#F9FAF9", // accent5 10% into white
   onAccent: "#FFFFFF",
-  dots: { color_1: "#2F6B55", color_2: "#FFCB68", color_3: "#E2773A", color_4: "#94A09A", color_5: "#1F4437" },
 } as const;
 
 export interface NoteRouteColor {
