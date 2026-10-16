@@ -1,3 +1,4 @@
+import { addIoHighlights } from "../graph/taskFlow";
 import type { LoomDocument, Task } from "../types";
 import { figureToPng } from "./rasterize";
 import { renderNoteFigure, type NoteFigureInput, type NoteHighlight } from "./renderNoteSvg";
@@ -18,9 +19,7 @@ const FONT_WARNING = "Noto Sans JP を埋め込めなかったため、端末の
 export function highlightForTask(t: Task): NoteHighlight {
   const m: NoteHighlight = new Map();
   m.set(t.mainNode, { role: "main", routeIndex: 0 });
-  [...t.inputNodes, ...t.outputNodes].forEach((n) => {
-    if (!m.has(n)) m.set(n, { role: "io", routeIndex: 0 });
-  });
+  addIoHighlights(m, t, 0);
   return m;
 }
 

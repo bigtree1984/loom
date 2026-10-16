@@ -3,8 +3,12 @@ import { BaseEdge, getStraightPath, useInternalNode, type EdgeProps, type Intern
 export interface LoomEdgeData extends Record<string, unknown> {
   active?: boolean;
   color: string;
-  /** Two-way edge: the dot shuttles back and forth instead of flowing one way. */
-  bidirectional?: boolean;
+  /** Direction the active dot travels relative to source -> target;
+   * "both" shuttles back and forth. */
+  flow?: "forward" | "backward" | "both";
+  /** The edge's own architecture arrow (what the edit toolbar shows) —
+   * markers may differ while the edge is live. */
+  archDir?: "forward" | "both" | "none";
 }
 
 /** Where the ray from `intersectionNode`'s center toward `otherNode`'s
@@ -76,8 +80,8 @@ export function LoomArchEdge({ id, source, target, style, label, labelStyle, dat
             repeatCount="indefinite"
             // Flow source -> target, matching the arrowhead; only a
             // two-way edge shuttles back and forth.
-            keyPoints={edgeData.bidirectional ? "0;1;0" : "0;1"}
-            keyTimes={edgeData.bidirectional ? "0;0.5;1" : "0;1"}
+            keyPoints={edgeData.flow === "both" ? "0;1;0" : edgeData.flow === "backward" ? "1;0" : "0;1"}
+            keyTimes={edgeData.flow === "both" ? "0;0.5;1" : "0;1"}
             calcMode="linear"
             path={path}
           />

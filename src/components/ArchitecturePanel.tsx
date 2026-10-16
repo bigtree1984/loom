@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Background, Controls, ReactFlow, useNodesState, useReactFlow, type Edge, type FinalConnectionState, type Node, type NodeChange } from "@xyflow/react";
-import { LoomArchEdge } from "./LoomArchEdge";
+import { LoomArchEdge, type LoomEdgeData } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
 import type { LaneHeader, LaneTile } from "../graph/toArchitectureFlow";
@@ -311,7 +311,7 @@ export function ArchitecturePanel({
         <div className="panel-title">アーキテクチャ(空間)</div>
         {!readOnly && selectedEdge !== null && (() => {
           const e = edges.find((x) => edgeIndexOf(x) === selectedEdge);
-          const current = !e ? null : !e.markerEnd ? "none" : e.markerStart ? "both" : "forward";
+          const current = (e?.data as LoomEdgeData | undefined)?.archDir ?? null;
           const opts: [EdgeDirection, string, string][] = [
             ["forward", "→", "向きあり"],
             ["backward", "⇄", "向きを反転"],

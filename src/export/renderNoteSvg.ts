@@ -1,3 +1,4 @@
+import { activeEdgeFlow, type NodeHighlight } from "../graph/taskFlow";
 import type { LoomDocument, Task } from "../types";
 import { PERSON_GLYPH_PATHS } from "../assets/personGlyph";
 import { noteCells, noteColumnCount } from "../graph/noteCells";
@@ -17,7 +18,7 @@ import {
 import { textEm as textEmWidth, wrapText } from "./textWrap";
 
 /** Same shape as useLoomState's highlightedArchNodes. */
-export type NoteHighlight = Map<string, { role: "main" | "io"; routeIndex: number }>;
+export type NoteHighlight = Map<string, NodeHighlight>;
 
 export interface NoteFigureInput {
   doc: LoomDocument;
@@ -238,8 +239,13 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     if (!a || !b) return;
     const ha = highlight?.get(e.from);
     const hb = highlight?.get(e.to);
-    const active = ha && hb && ha.routeIndex === hb.routeIndex && (ha.role === "main" || hb.role === "main");
-    const color = active ? noteRouteColor(ha.routeIndex).strong : C.edge;
+    // A live edge's arrows show the task's data flow (input -> main ->
+    // output), not the edge's own architecture arrow.
+    const live = activeEdgeFlow(ha, hb);
+    const active = !!live;
+    const color = live ? noteRouteColor(live.routeIndex).strong : C.edge;
+    const arrowEnd = live ? live.dir !== "backward" : !e.undirected;
+    const arrowStart = live ? live.dir !== "forward" : !!e.bidirectional && !e.undirected;
     let [x1, y1] = clipToBox(b.x, b.y, a.x, a.y, hw, hh);
     let [x2, y2] = clipToBox(a.x, a.y, b.x, b.y, hw, hh);
     const len = Math.hypot(x2 - x1, y2 - y1);
@@ -249,17 +255,17 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     const ux = (x2 - x1) / len;
     const uy = (y2 - y1) / len;
     // Leave room for the arrowhead so the line doesn't poke through it.
-    const head = e.undirected ? 0 : Math.min(ARROW, len * 0.6);
+    const head = arrowEnd ? Math.min(ARROW, len * 0.6) : 0;
     x2 -= ux * head;
     y2 -= uy * head;
-    if (e.bidirectional && !e.undirected) {
+    if (arrowStart) {
       x1 += ux * ARROW;
       y1 += uy * ARROW;
     }
     const m = markerFor(color);
     edgeSvg.push(
-      `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${active ? STROKE_MIN + 2 : STROKE_MIN}" stroke-linecap="round"${e.undirected ? "" : ` marker-end="url(#${m})"`}${
-        e.bidirectional && !e.undirected ? ` marker-start="url(#${m})"` : ""
+      `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${active ? STROKE_MIN + 2 : STROKE_MIN}" stroke-linecap="round"${arrowEnd ? ` marker-end="url(#${m})"` : ""}${
+        arrowStart ? ` marker-start="url(#${m})"` : ""
       }/>`,
     );
   });

@@ -3,10 +3,8 @@ import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
 
-export interface ArchNodeHighlight {
-  role: "main" | "io";
-  routeIndex: number;
-}
+export type { NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
+import { addIoHighlights, type NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
 
 export interface PendingDecision {
   taskId: string;
@@ -417,9 +415,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     });
     currentTasks.forEach((t) => {
       const routeIndex = routeColorByTask.get(t.id) ?? 0;
-      [...t.inputNodes, ...t.outputNodes].forEach((n) => {
-        if (!map.has(n)) map.set(n, { role: "io", routeIndex });
-      });
+      addIoHighlights(map, t, routeIndex);
     });
     return map;
   }, [currentTasks, routeColorByTask]);

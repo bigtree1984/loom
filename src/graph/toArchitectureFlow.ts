@@ -5,6 +5,8 @@ import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
 import { truncateLabel } from "./textUtils";
 import type { ArchNodeHighlight } from "../state/useLoomState";
+import { activeEdgeFlow } from "./taskFlow";
+import { edgeDirectionOf } from "./gridEdits";
 import type { LoomEdgeData } from "../components/LoomArchEdge";
 import type { LoomArchNodeData } from "../components/LoomArchNode";
 
@@ -33,14 +35,6 @@ export interface LaneHeader {
   x: number;
 }
 
-/** If both ends of an edge belong to the same route (one is that route's
- * main node, the other its io node), the edge is "live" for that route. */
-function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight | undefined): number | null {
-  if (!a || !b || a.routeIndex !== b.routeIndex) return null;
-  if (a.role === "main" && b.role === "io") return a.routeIndex;
-  if (b.role === "main" && a.role === "io") return b.routeIndex;
-  return null;
-}
 
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
@@ -101,10 +95,16 @@ export function toArchitectureFlow(
   });
 
   const edges: Edge[] = architecture.edges.map((e, i) => {
-    const routeIndex = edgeRouteIndex(highlightedArchNodes.get(e.from), highlightedArchNodes.get(e.to));
-    const active = routeIndex !== null;
-    const color = active ? routeColorFor(routeIndex!).edge : NEUTRAL_EDGE;
-    const edgeData: LoomEdgeData = { active, color, bidirectional: !!e.bidirectional || !!e.undirected };
+    // Live edge (between a current task's main node and one of its io
+    // nodes): arrows and the moving dot follow the task's input/output
+    // settings, not the edge's own architecture arrow.
+    const live = activeEdgeFlow(highlightedArchNodes.get(e.from), highlightedArchNodes.get(e.to));
+    const active = !!live;
+    const color = live ? routeColorFor(live.routeIndex).edge : NEUTRAL_EDGE;
+    const flow = live ? live.dir : e.undirected || e.bidirectional ? "both" : "forward";
+    const arrowEnd = live ? live.dir !== "backward" : !e.undirected;
+    const arrowStart = live ? live.dir !== "forward" : !!e.bidirectional && !e.undirected;
+    const edgeData: LoomEdgeData = { active, color, flow, archDir: edgeDirectionOf(e) };
 
     return {
       id: `arch-edge-${i}-${e.from}-${e.to}`,
@@ -114,8 +114,8 @@ export function toArchitectureFlow(
       label: e.label,
       data: edgeData,
       style: { stroke: color, strokeWidth: active ? 2 : 1 },
-      ...(e.undirected ? {} : { markerEnd: { type: MarkerType.ArrowClosed, color } }),
-      ...(e.bidirectional && !e.undirected ? { markerStart: { type: MarkerType.ArrowClosed, color } } : {}),
+      ...(arrowEnd ? { markerEnd: { type: MarkerType.ArrowClosed, color } } : {}),
+      ...(arrowStart ? { markerStart: { type: MarkerType.ArrowClosed, color } } : {}),
       labelStyle: { fontSize: 11, fill: "var(--loom-text-secondary)" },
     };
   });
