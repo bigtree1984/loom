@@ -64,7 +64,7 @@ describe("note canvas geometry", () => {
   });
 });
 
-describe("renderNoteFigure without lanes", () => {
+describe("renderNoteFigure lane legend (no column headers)", () => {
   const doc: LoomDocument = normalizeLoomDocument({
     architecture: {
       columns: Array.from({ length: 7 }, (_, i) => ({ id: `c${i}`, label: `LANE${i}` })),
@@ -73,9 +73,13 @@ describe("renderNoteFigure without lanes", () => {
     },
     flow: { tasks: [], connections: [] },
   });
-  it("draws no column headers and warns about nothing for wide diagrams", () => {
+  it("names each used lane once (legend), tints cells, warns about nothing", () => {
     const fig = renderNoteFigure({ doc, orderedTasks: [] });
-    expect(fig.svg).not.toMatch(/LANE/);
+    for (let i = 0; i < 7; i++) expect(fig.svg.match(new RegExp(`>LANE${i}<`, "g"))?.length).toBe(1);
+    // one tile per node; 7 lanes get 7 distinct tints (8-colour palette)
+    const tints = [...fig.svg.matchAll(/rx="24" fill="(#[0-9A-F]{6})"/g)].map((m) => m[1]);
+    expect(tints).toHaveLength(7);
+    expect(new Set(tints).size).toBe(7);
     expect(fig.warnings).toEqual([]);
     expect(fig.svg).toMatch(/font-size="38"/);
   });
@@ -87,6 +91,12 @@ describe("renderNoteFigure without lanes", () => {
     const c = noteCellCenter(g, { col: 0, row: 3 }, fig.diagram.top);
     expect(fig.svg).toContain(`x="${Math.round((c.x - g.nodeW / 2) * 10) / 10}" y="${Math.round((c.y - g.nodeH / 2) * 10) / 10}"`);
     expect(fig.diagram.height).toBeCloseTo(4 * g.pitchY);
+  });
+  it("omits legend and tints when everything is in one lane", () => {
+    const one = normalizeLoomDocument({
+      architecture: { nodes: [{ id: "a", label: "A", type: "agent", col: 0, row: 0 }, { id: "b", label: "B", type: "agent", col: 0, row: 1 }] },
+    });
+    expect(renderNoteFigure({ doc: one, orderedTasks: [] }).svg).not.toMatch(/rx="24" fill="#/);
   });
 });
 

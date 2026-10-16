@@ -12,9 +12,10 @@ import {
   NODE_FONT,
   NOTE_COLORS as C,
   STROKE_MIN,
+  noteLaneColor,
   noteRouteColor,
 } from "./noteSpec";
-import { wrapText } from "./textWrap";
+import { textEm as textEmWidth, wrapText } from "./textWrap";
 
 /** Same shape as useLoomState's highlightedArchNodes. */
 export type NoteHighlight = Map<string, { role: "main" | "io"; routeIndex: number }>;
@@ -137,6 +138,33 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     y += bandH + 48;
   }
 
+  // ---- Lane legend -------------------------------------------------------
+  // Free placement means a node's lane can't be its column; it's shown by
+  // the tint of its cell instead, keyed by this legend. Only lanes that
+  // actually hold a node are listed, in screen column order.
+  const usedCols = [...new Set(arch.nodes.map((n) => n.col ?? 0))].sort((a, b) => a - b);
+  const laneIndexOfCol = new Map(usedCols.map((c, i) => [c, i]));
+  const laneName = (c: number) => arch.columns[c]?.label || `列${c + 1}`;
+  if (usedCols.length > 1) {
+    const chip = 40;
+    const gapX = 36;
+    let lx = MARGIN;
+    let ly = y;
+    usedCols.forEach((c) => {
+      const name = laneName(c);
+      const w = chip + 14 + Math.min(CONTENT_W - chip - 14, FONT_1 * textEmWidth(name));
+      if (lx > MARGIN && lx + w > MARGIN + CONTENT_W) {
+        lx = MARGIN;
+        ly += LH1 + 12;
+      }
+      const col = noteLaneColor(laneIndexOfCol.get(c)!);
+      svg.push(`<rect x="${r(lx)}" y="${r(ly + (LH1 - chip) / 2)}" width="${chip}" height="${chip}" rx="10" fill="${col.chip}"/>`);
+      svg.lines([name], lx + chip + 14, ly + LH1 / 2 + FONT_1 * 0.36, { size: FONT_1, lh: LH1, fill: C.text });
+      lx += w + gapX;
+    });
+    y = ly + LH1 + 40;
+  }
+
   // ---- Architecture: lane-less canvas placed by noteCells -------------
   const diagramTop = y;
   const cells = noteCells(arch);
@@ -146,11 +174,22 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   const edgeSvg: string[] = [];
   const labelEm = g.textW / NODE_FONT;
 
+  const tileSvg: string[] = [];
   arch.nodes.forEach((nd) => {
     const cell = cells.get(nd.id);
     if (!cell) return;
     const p = noteCellCenter(g, cell, diagramTop);
     centers.set(nd.id, p);
+    if (usedCols.length > 1) {
+      const tint = noteLaneColor(laneIndexOfCol.get(nd.col ?? 0)!).tile;
+      if (layout === "hex") {
+        tileSvg.push(`<polygon points="${hexPoints(p.x, p.y, g.pitchX - 10, g.tileH - 12)}" fill="${tint}"/>`);
+      } else {
+        const tw = g.pitchX - 16;
+        const th = g.pitchY - 24;
+        tileSvg.push(`<rect x="${r(p.x - tw / 2)}" y="${r(p.y - th / 2)}" width="${r(tw)}" height="${r(th)}" rx="24" fill="${tint}"/>`);
+      }
+    }
     const h = highlight?.get(nd.id);
     const route = h ? noteRouteColor(h.routeIndex) : undefined;
     const fill = h?.role === "main" ? route!.strong : h?.role === "io" ? route!.light : C.bg;
@@ -222,7 +261,7 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
       }/>`,
     );
   });
-  svg.parts.push(...edgeSvg);
+  svg.parts.push(...tileSvg, ...edgeSvg);
   svg.parts.push(...nodeSvg.parts);
   svg.text += nodeSvg.text;
 

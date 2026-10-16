@@ -62,3 +62,20 @@ export const NOTE_ROUTE_COLORS: NoteRouteColor[] = [
 export const noteRouteColor = (i: number): NoteRouteColor => NOTE_ROUTE_COLORS[i % NOTE_ROUTE_COLORS.length];
 
 export const FONT_FAMILY = `'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif`;
+
+const mixIntoWhite = (hex: string, pct: number): string => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `#${c.map((v) => Math.round(v * pct + 255 * (1 - pct)).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+};
+
+/**
+ * Lane colours for the note figure (lane-less canvas: a node's lane is shown
+ * by the tint of its cell plus a legend). The first four are Bigtree hues;
+ * Bigtree has no blue/purple/rose/teal, so lanes 5-8 borrow muted hues
+ * outside the palette — a candidate to add to the Figma variables if kept.
+ * `tile` is the cell tint (kept pale so it never competes with the route
+ * highlight inside the node); `chip` is the stronger swatch in the legend.
+ */
+const LANE_HUES = ["#2F6B55", "#FFCB68", "#E2773A", "#66776F", "#4F7CAC", "#8A6FB0", "#C0607A", "#3A8C8C"];
+export const NOTE_LANE_COLORS = LANE_HUES.map((h) => ({ tile: mixIntoWhite(h, 0.22), chip: mixIntoWhite(h, 0.6) }));
+export const noteLaneColor = (i: number) => NOTE_LANE_COLORS[i % NOTE_LANE_COLORS.length];
