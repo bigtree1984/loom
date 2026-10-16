@@ -608,6 +608,7 @@
   opacity: 0.7;
 }
 .note-view-scroll {
+  display: flex;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -616,9 +617,8 @@
 }
 .note-page {
   position: relative;
-  width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
+  flex: 0 0 auto;
+  margin: auto;
   background: #fff;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
 }
@@ -703,4 +703,16 @@
 
 .picking .loom-connect-handle {
   display: none;
+}
+
+.note-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.note-zoom-value {
+  min-width: 3.5em;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }

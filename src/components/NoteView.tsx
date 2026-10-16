@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { noteCells } from "../graph/noteCells";
 import { currentFigureInput } from "../export/noteExport";
 import { noteCellAt, noteCellCenter } from "../export/noteLayout";
@@ -14,6 +14,10 @@ interface Props {
   onToggleLayout: () => void;
 }
 
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 2;
+const STEP = 1.25;
+
 type Drag = { id: string; x: number; y: number; dx: number; dy: number };
 
 /**
@@ -28,6 +32,66 @@ export function NoteView({ doc, currentTasks, highlight, onMoveNode, onReset, on
   const pageRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const g = fig.diagram.geometry;
+
+  // Zoom. scale = on-screen px per figure px (1 = the exported PNG's actual
+  // size); null = fit the panel width (as before zoom existed), tracking resizes.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number | null>(null);
+  const [fitScale, setFitScale] = useState(0.5);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      const pad = 32;
+      setFitScale(Math.max(MIN_SCALE, Math.min(1, (el.clientWidth - pad) / fig.width)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fig.width, fig.height]);
+  const shown = scale ?? fitScale;
+  // Keep the point under the cursor (or the panel centre) fixed while zooming.
+  const anchor = useRef<{ fx: number; fy: number; vx: number; vy: number } | null>(null);
+  const zoomTo = (next: number, clientX?: number, clientY?: number) => {
+    const el = scrollRef.current;
+    const page = pageRef.current;
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+    if (el && page) {
+      const er = el.getBoundingClientRect();
+      const pr = page.getBoundingClientRect();
+      const vx = (clientX ?? er.left + er.width / 2) - er.left;
+      const vy = (clientY ?? er.top + er.height / 2) - er.top;
+      anchor.current = { fx: (er.left + vx - pr.left) / shown, fy: (er.top + vy - pr.top) / shown, vx, vy };
+    }
+    setScale(clamped);
+  };
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const page = pageRef.current;
+    const a = anchor.current;
+    if (!el || !page || !a) return;
+    anchor.current = null;
+    el.scrollLeft = page.offsetLeft + a.fx * shown - a.vx;
+    el.scrollTop = page.offsetTop + a.fy * shown - a.vy;
+  }, [shown]);
+  // Ctrl/⌘ + wheel (and trackpad pinch, which arrives as ctrl+wheel).
+  // Needs a non-passive listener to stop the browser's own page zoom.
+  const zoomRef = useRef(zoomTo);
+  zoomRef.current = zoomTo;
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomRef.current(shownRef.current * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   const top = fig.diagram.top;
 
   const toFigure = (e: React.PointerEvent): { x: number; y: number } => {
@@ -73,12 +137,28 @@ export function NoteView({ doc, currentTasks, highlight, onMoveNode, onReset, on
         <div className="panel-title">note挿絵（書き出しと同じ見た目）</div>
         <div className="panel-header-actions">
           <span className="note-view-hint">ノードをドラッグしてマスを移動</span>
+          <span className="note-zoom" role="group" aria-label="拡大縮小">
+            <button onClick={() => zoomTo(shown / STEP)} aria-label="縮小" disabled={shown <= MIN_SCALE}>
+              −
+            </button>
+            <span className="note-zoom-value" title="書き出しサイズに対する倍率">{Math.round(shown * 100)}%</span>
+            <button onClick={() => zoomTo(shown * STEP)} aria-label="拡大" disabled={shown >= MAX_SCALE}>
+              ＋
+            </button>
+            <button onClick={() => setScale(null)} aria-pressed={scale === null}>
+              幅に合わせる
+            </button>
+          </span>
           <button onClick={onToggleLayout}>{g.layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>
           <button onClick={onReset}>配置をリセット</button>
         </div>
       </div>
-      <div className="note-view-scroll">
-        <div className="note-page" ref={pageRef} style={{ aspectRatio: `${fig.width} / ${fig.height}` }}>
+      <div className="note-view-scroll" ref={scrollRef}>
+        <div
+          className="note-page"
+          ref={pageRef}
+          style={{ width: fig.width * shown, height: fig.height * shown }}
+        >
           <div className="note-page-svg" dangerouslySetInnerHTML={{ __html: fig.svg }} />
           <svg
             className="note-page-overlay"
