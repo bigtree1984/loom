@@ -9,14 +9,15 @@ interface Props {
   onTaskClick: (taskId: string) => void;
   onTaskDoubleClick: (taskId: string) => void;
   onAddTask: () => void;
+  readOnly?: boolean;
 }
 
-export function ProcessFlowPanel({ nodes, edges, onTaskClick, onTaskDoubleClick, onAddTask }: Props) {
+export function ProcessFlowPanel({ nodes, edges, onTaskClick, onTaskDoubleClick, onAddTask, readOnly = false }: Props) {
   return (
     <div className="panel process-flow-panel">
       <div className="panel-header">
         <div className="panel-title">プロセスフロー(時間)</div>
-        <button onClick={onAddTask}>+タスク追加</button>
+        {!readOnly && <button onClick={onAddTask}>+タスク追加</button>}
       </div>
       <div className="rf-container">
         <ReactFlow
@@ -30,7 +31,9 @@ export function ProcessFlowPanel({ nodes, edges, onTaskClick, onTaskDoubleClick,
           elementsSelectable={false}
           zoomOnDoubleClick={false}
           onNodeClick={(_, node) => onTaskClick(node.id)}
-          onNodeDoubleClick={(_, node) => onTaskDoubleClick(node.id)}
+          onNodeDoubleClick={(_, node) => {
+            if (!readOnly) onTaskDoubleClick(node.id);
+          }}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} size={1} />

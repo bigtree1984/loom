@@ -49,6 +49,8 @@ interface Props {
   layout: ArchLayout;
   onRelayout: () => void;
   onToggleLayout: () => void;
+  /** Present mode: no editing affordances, nodes fixed in place. */
+  readOnly?: boolean;
 }
 
 export function ArchitecturePanel({
@@ -65,6 +67,7 @@ export function ArchitecturePanel({
   layout,
   onRelayout,
   onToggleLayout,
+  readOnly = false,
 }: Props) {
   const headerWidth = geometryFor(layout).nodeW;
   const [rfNodes, setRfNodes, onNodesChangeBase] = useNodesState(nodes);
@@ -117,6 +120,7 @@ export function ArchitecturePanel({
       laneHeaders.map((h, i) => {
         const data: LoomLaneHeaderData = {
           label: h.label,
+          readOnly,
           canMoveLeft: i > 0,
           canMoveRight: i < laneHeaders.length - 1,
           onMoveLeft: () => onSwapLanes(i - 1),
@@ -138,7 +142,7 @@ export function ArchitecturePanel({
           style: { width: headerWidth, pointerEvents: "auto" },
         };
       }),
-    [laneHeaders, onSwapLanes, headerWidth],
+    [laneHeaders, onSwapLanes, headerWidth, readOnly],
   );
 
   const tileNodes: Node[] = useMemo(
@@ -165,12 +169,14 @@ export function ArchitecturePanel({
     <div className="panel architecture-panel">
       <div className="panel-header">
         <div className="panel-title">アーキテクチャ(空間)</div>
-        <div className="panel-header-actions">
-          <button onClick={onToggleLayout}>{layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>
-          <button onClick={onRelayout}>整列し直す</button>
-          <button onClick={onAddGroup}>+列追加</button>
-          <button onClick={onAddNode}>+ノード追加</button>
-        </div>
+        {!readOnly && (
+          <div className="panel-header-actions">
+            <button onClick={onToggleLayout}>{layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>
+            <button onClick={onRelayout}>整列し直す</button>
+            <button onClick={onAddGroup}>+列追加</button>
+            <button onClick={onAddNode}>+ノード追加</button>
+          </div>
+        )}
       </div>
       <div className="rf-container">
         <ReactFlow
@@ -180,6 +186,7 @@ export function ArchitecturePanel({
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onNodeDoubleClick={(_, node) => {
+            if (readOnly) return;
             if (node.type === "loomLaneHeader") {
               const col = Number(node.id.slice("lane-header-".length));
               const header = laneHeaders[col];
@@ -190,7 +197,8 @@ export function ArchitecturePanel({
           }}
           fitView
           fitViewOptions={{ padding: 0.2 }}
-          nodesDraggable
+          nodesDraggable={!readOnly}
+          zoomOnDoubleClick={false}
           nodesConnectable={false}
           elementsSelectable={false}
           proOptions={{ hideAttribution: true }}

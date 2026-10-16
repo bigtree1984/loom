@@ -6,6 +6,8 @@ export interface LoomLaneHeaderData extends Record<string, unknown> {
   canMoveRight: boolean;
   onMoveLeft: () => void;
   onMoveRight: () => void;
+  /** Present mode: label only, no reorder arrows. */
+  readOnly?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export function LoomLaneHeader({ data }: NodeProps) {
     // before a real click ever reaches the buttons — only synthetic
     // .click() calls worked without this, actual mouse clicks didn't.
     <div className="loom-lane-header nodrag nopan">
+      {!d.readOnly && (
       <button
         className="loom-lane-header-arrow"
         disabled={!d.canMoveLeft}
@@ -29,7 +32,9 @@ export function LoomLaneHeader({ data }: NodeProps) {
       >
         ◀
       </button>
+      )}
       <span className="loom-lane-header-label">{d.label}</span>
+      {!d.readOnly && (
       <button
         className="loom-lane-header-arrow"
         disabled={!d.canMoveRight}
@@ -38,6 +43,7 @@ export function LoomLaneHeader({ data }: NodeProps) {
       >
         ▶
       </button>
+      )}
     </div>
   );
 }
