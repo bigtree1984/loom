@@ -45,10 +45,14 @@ function edgeRouteIndex(a: ArchNodeHighlight | undefined, b: ArchNodeHighlight |
 export function toArchitectureFlow(
   architecture: LoomDocument["architecture"],
   highlightedArchNodes: Map<string, ArchNodeHighlight>,
+  editable = false,
 ): { nodes: Node[]; edges: Edge[]; laneHeaders: LaneHeader[]; tiles: LaneTile[]; geometry: CellGeometry } {
   const layout = architecture.layout ?? "grid";
   const geometry = geometryFor(layout);
 
+  // Nothing current (cleared step): show every node at full strength
+  // rather than all of them dimmed.
+  const anyActive = highlightedArchNodes.size > 0;
   const nodes: Node[] = architecture.nodes.map((n) => {
     const position = cellToPixel(n.col ?? 0, n.row ?? 0, layout);
     const highlight = highlightedArchNodes.get(n.id);
@@ -68,6 +72,7 @@ export function toArchitectureFlow(
       fullLabel: n.label,
       isHuman: n.type === "human",
       iconUrl: iconUrlFor(n.icon),
+      connectable: editable,
     };
     return {
       id: n.id,
@@ -85,7 +90,7 @@ export function toArchitectureFlow(
         color: "var(--loom-text-primary)",
         fontWeight: isMain ? 600 : 500,
         fontSize: 13,
-        opacity: highlight ? 1 : 0.6,
+        opacity: highlight || !anyActive ? 1 : 0.6,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

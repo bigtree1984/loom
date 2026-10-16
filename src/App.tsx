@@ -7,7 +7,7 @@ import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
-import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
+import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, swapColumns } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { applyThemeToRoot } from "./graph/theme";
@@ -20,7 +20,7 @@ import { ControlBar } from "./components/ControlBar";
 import { TaskDetailPanel } from "./components/TaskDetailPanel";
 import { JsonUploader } from "./components/JsonUploader";
 import { NodeEditorModal } from "./components/NodeEditorModal";
-import { TaskEditorModal } from "./components/TaskEditorModal";
+import { TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
 import { useSampleAutoload } from "./hooks/useSampleAutoload";
@@ -38,6 +38,20 @@ const SAMPLE = sampleDataRaw as unknown as LoomDocument;
 
 const EMPTY_ARCH = { nodes: [], edges: [], laneHeaders: [], tiles: [], geometry: geometryFor("grid") };
 
+const PICK_LABEL: Record<PickTarget, string> = {
+  main: "軸ノード",
+  input: "入力ノード",
+  output: "出力ノード",
+  prev: "前タスク",
+  next: "後ろタスク",
+};
+
+interface PickState {
+  target: PickTarget;
+  selected: string[];
+  apply: (ids: string[]) => void;
+}
+
 type EditorState = { kind: "node" | "task" | "group"; id: string | null } | { kind: "json" } | null;
 
 function App() {
@@ -51,6 +65,42 @@ function App() {
     () => readModeFromLocationHash() ?? (location.hash.startsWith("#doc=") ? "present" : "edit"),
   );
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  // Task editor's "選択" buttons: the editor hides (staying mounted) while
+  // the user clicks nodes/tasks on the diagrams.
+  const [pick, setPick] = useState<PickState | null>(null);
+  const startPick = useCallback(
+    (target: PickTarget, current: string[], apply: (ids: string[]) => void) => setPick({ target, selected: current, apply }),
+    [],
+  );
+  const togglePick = useCallback((id: string) => {
+    setPick((p) => {
+      if (!p) return p;
+      // 軸ノード is a single choice: one click picks it and finishes.
+      if (p.target === "main") {
+        p.apply([id]);
+        return null;
+      }
+      return { ...p, selected: p.selected.includes(id) ? p.selected.filter((x) => x !== id) : [...p.selected, id] };
+    });
+  }, []);
+  const finishPick = useCallback(() => {
+    setPick((p) => {
+      p?.apply(p.selected);
+      return null;
+    });
+  }, []);
+  const pickingArch = pick && (pick.target === "main" || pick.target === "input" || pick.target === "output");
+  const pickingFlow = pick && (pick.target === "prev" || pick.target === "next");
+  const pickedSet = useMemo(() => new Set(pick?.selected ?? []), [pick]);
+  useEffect(() => {
+    if (!pick) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPick(null);
+      else if (e.key === "Enter") finishPick();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pick, finishPick]);
   const [menuOpen, setMenuOpen] = useState(false);
   const present = mode === "present";
   const note = mode === "note";
@@ -120,7 +170,7 @@ function App() {
     // Present mode renders a compacted copy (empty columns skipped); the
     // document itself is never touched.
     const arch = present ? compactForPresent(loom.doc.architecture) : loom.doc.architecture;
-    return toArchitectureFlow(arch, loom.highlightedArchNodes);
+    return toArchitectureFlow(arch, loom.highlightedArchNodes, !present);
   }, [loom.doc, loom.highlightedArchNodes, present]);
 
   // Swaps column `index` with its right-hand neighbour — header and every
@@ -128,6 +178,32 @@ function App() {
   const handleSwapLanes = useCallback(
     (index: number) => {
       if (loom.doc) loom.loadDocument(swapColumns(loom.doc, index));
+    },
+    [loom],
+  );
+
+  const handleMoveLane = useCallback(
+    (from: number, to: number) => {
+      if (loom.doc) loom.loadDocument(moveColumn(loom.doc, from, to));
+    },
+    [loom],
+  );
+
+  const handleConnectNodes = useCallback(
+    (from: string, to: string) => {
+      if (loom.doc) loom.loadDocument(addEdge(loom.doc, from, to));
+    },
+    [loom],
+  );
+  const handleDeleteEdge = useCallback(
+    (index: number) => {
+      if (loom.doc) loom.loadDocument(removeEdgeAt(loom.doc, index));
+    },
+    [loom],
+  );
+  const handleReverseEdge = useCallback(
+    (index: number) => {
+      if (loom.doc) loom.loadDocument(reverseEdgeAt(loom.doc, index));
     },
     [loom],
   );
@@ -277,9 +353,15 @@ function App() {
             nodes={processFlow.nodes}
             edges={processFlow.edges}
             onTaskClick={loom.jumpTo}
+            onPaneClick={loom.clearPosition}
             onTaskDoubleClick={(id) => setEditor({ kind: "task", id })}
             onAddTask={() => setEditor({ kind: "task", id: null })}
             readOnly={present}
+            picking={
+              pickingFlow
+                ? { selected: pickedSet, exclude: editor?.kind === "task" ? editor.id ?? undefined : undefined, onPick: togglePick }
+                : null
+            }
           />
         </ReactFlowProvider>
         <div className="architecture-column">
@@ -300,6 +382,10 @@ function App() {
                 laneHeaders={archFlow.laneHeaders}
                 tiles={archFlow.tiles}
                 onSwapLanes={handleSwapLanes}
+                onMoveLane={handleMoveLane}
+                onConnectNodes={handleConnectNodes}
+                onDeleteEdge={handleDeleteEdge}
+                onReverseEdge={handleReverseEdge}
                 onNodeDragEnd={handleNodeDragEnd}
                 onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
                 onAddNode={() => setEditor({ kind: "node", id: null })}
@@ -309,10 +395,11 @@ function App() {
                 onRelayout={handleRelayout}
                 onToggleLayout={handleToggleLayout}
                 readOnly={present}
+                picking={pickingArch ? { selected: pickedSet, onPick: togglePick } : null}
               />
             </ReactFlowProvider>
           )}
-          <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
+          <TaskDetailPanel hasDoc={!!loom.doc} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
         </div>
       </div>
 
@@ -339,11 +426,35 @@ function App() {
         </Modal>
       )}
 
+      {pick && (
+        <div className="pick-banner" role="status">
+          <span>
+            {PICK_LABEL[pick.target]}を選択中
+            {pick.target !== "main" && `(${pick.selected.length}件)`} —{" "}
+            {pickingArch ? "アーキテクチャ図のノード" : "フロー図のタスク"}をクリック
+          </span>
+          {pick.target !== "main" && (
+            <button className="control-choice forward" onClick={finishPick}>
+              完了
+            </button>
+          )}
+          <button onClick={() => setPick(null)}>キャンセル</button>
+        </div>
+      )}
+
       {editor?.kind === "node" && loom.doc && (
         <NodeEditorModal doc={loom.doc} nodeId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />
       )}
       {editor?.kind === "task" && loom.doc && (
-        <TaskEditorModal doc={loom.doc} taskId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />
+        <TaskEditorModal
+          doc={loom.doc}
+          taskId={editor.id}
+          onSave={handleEditorSave}
+          onClose={() => setEditor(null)}
+          onPick={startPick}
+          canPickArch={!note}
+          hidden={!!pick}
+        />
       )}
       {editor?.kind === "group" && loom.doc && (
         <GroupEditorModal doc={loom.doc} groupId={editor.id} onSave={handleEditorSave} onClose={() => setEditor(null)} />

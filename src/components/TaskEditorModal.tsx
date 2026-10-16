@@ -9,11 +9,19 @@ interface Props {
   taskId: string | null;
   onSave: (doc: LoomDocument) => void;
   onClose: () => void;
+  /** Starts picking on a diagram; `apply` receives the final selection.
+   * Absent = picking unavailable (e.g. the architecture diagram is hidden). */
+  onPick?: (target: PickTarget, current: string[], apply: (ids: string[]) => void) => void;
+  /** Architecture picking needs the architecture diagram on screen. */
+  canPickArch?: boolean;
+  hidden?: boolean;
 }
+
+export type PickTarget = "main" | "input" | "output" | "prev" | "next";
 
 type Direction = "incoming" | "outgoing";
 
-export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
+export function TaskEditorModal({ doc, taskId, onSave, onClose, onPick, canPickArch = true, hidden }: Props) {
   const existing = useMemo(() => doc.flow.tasks.find((t) => t.id === taskId) ?? null, [doc, taskId]);
 
   const [id] = useState(() => existing?.id ?? nextId("task", doc.flow.tasks.map((x) => x.id)));
@@ -52,6 +60,39 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
   const removeConnection = (index: number) => {
     setConnections((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // Replace one direction's connections with the picked tasks, keeping the
+  // label of any connection that was already there.
+  const applyPickedConnections = (dir: Direction, ids: string[]) => {
+    setConnections((prev) => {
+      const isDir = (c: Connection) => (dir === "outgoing" ? c.from === id : c.to === id);
+      const otherOf = (c: Connection) => (dir === "outgoing" ? c.to : c.from);
+      const kept = prev.filter((c) => !isDir(c) || ids.includes(otherOf(c)));
+      const have = new Set(kept.filter(isDir).map(otherOf));
+      const added = ids
+        .filter((t) => !have.has(t))
+        .map((t) => (dir === "outgoing" ? { from: id, to: t } : { from: t, to: id }));
+      return [...kept, ...added];
+    });
+  };
+  const connectedIds = (dir: Direction) =>
+    connections.filter((c) => (dir === "outgoing" ? c.from === id : c.to === id)).map((c) => (dir === "outgoing" ? c.to : c.from));
+
+  const archPickButton = (target: PickTarget, current: string[], apply: (ids: string[]) => void) =>
+    onPick && (
+      <button
+        type="button"
+        className="pick-button"
+        disabled={!canPickArch}
+        title={canPickArch ? undefined : "編集/プレゼンモードで使えます"}
+        onClick={(e) => {
+          e.preventDefault();
+          onPick(target, current, apply);
+        }}
+      >
+        アーキテクチャから選択
+      </button>
+    );
 
   const handleSave = () => {
     if (!label.trim()) {
@@ -98,7 +139,7 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
   };
 
   return (
-    <Modal title={existing ? "タスクを編集" : "タスクを追加"} onClose={onClose}>
+    <Modal title={existing ? "タスクを編集" : "タスクを追加"} onClose={onClose} hidden={hidden}>
       {existing && <div style={{ fontSize: 11, opacity: 0.6 }}>ID: {id}</div>}
       <label>
         ラベル
@@ -108,8 +149,11 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
         説明
         <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
-      <label>
-        軸ノード(mainNode)
+      <div className="modal-field">
+        <span className="field-head">
+          軸ノード(mainNode)
+          {archPickButton("main", mainNode ? [mainNode] : [], (ids) => ids[0] && setMainNode(ids[0]))}
+        </span>
         <select value={mainNode} onChange={(e) => setMainNode(e.target.value)}>
           {doc.architecture.nodes.map((n) => (
             <option key={n.id} value={n.id}>
@@ -117,9 +161,12 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
             </option>
           ))}
         </select>
-      </label>
-      <label>
-        入力ノード
+      </div>
+      <div className="modal-field">
+        <span className="field-head">
+          入力ノード
+          {archPickButton("input", inputNodes, setInputNodes)}
+        </span>
         <span className="modal-checkbox-list">
           {doc.architecture.nodes.map((n) => (
             <label key={n.id}>
@@ -132,9 +179,12 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
             </label>
           ))}
         </span>
-      </label>
-      <label>
-        出力ノード
+      </div>
+      <div className="modal-field">
+        <span className="field-head">
+          出力ノード
+          {archPickButton("output", outputNodes, setOutputNodes)}
+        </span>
         <span className="modal-checkbox-list">
           {doc.architecture.nodes.map((n) => (
             <label key={n.id}>
@@ -147,9 +197,21 @@ export function TaskEditorModal({ doc, taskId, onSave, onClose }: Props) {
             </label>
           ))}
         </span>
-      </label>
+      </div>
 
-      <p className="modal-section-title">前後のタスク接続</p>
+      <p className="modal-section-title field-head">
+        前後のタスク接続
+        {onPick && (
+          <span className="pick-buttons">
+            <button type="button" className="pick-button" onClick={() => onPick("prev", connectedIds("incoming"), (ids) => applyPickedConnections("incoming", ids))}>
+              前タスクをフローから選択
+            </button>
+            <button type="button" className="pick-button" onClick={() => onPick("next", connectedIds("outgoing"), (ids) => applyPickedConnections("outgoing", ids))}>
+              後ろタスクをフローから選択
+            </button>
+          </span>
+        )}
+      </p>
       {connections.length === 0 && <p className="modal-conn-row">まだ接続がありません</p>}
       {connections.map((c, i) => {
         const selfId = id;

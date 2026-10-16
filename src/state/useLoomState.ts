@@ -320,9 +320,29 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   );
 
   const goNext = useCallback(() => {
+    // From the cleared state (nothing highlighted), "next" starts over at
+    // the first task.
+    if (position.length === 0) {
+      const root = doc ? findRootId(doc.flow.tasks.map((t) => t.id), doc.flow.connections) : "";
+      if (!root) return;
+      setHistory((h) => [...h, { position, joinArrivals }]);
+      setPosition([root]);
+      return;
+    }
     if (pendingDecisions.length > 0) return; // must use `choose`
     advance();
-  }, [advance, pendingDecisions]);
+  }, [advance, pendingDecisions, position, joinArrivals, doc]);
+
+  /** No current task at all (clicking empty space in the flow panel) — so
+   * an editor can look at the diagrams without any step highlighted.
+   * Undoable with 戻る like any other jump. */
+  const clearPosition = useCallback(() => {
+    if (position.length === 0) return;
+    setHistory((h) => [...h, { position, joinArrivals }]);
+    setPosition([]);
+    setJoinArrivals({});
+    setIsPlaying(false);
+  }, [position, joinArrivals]);
 
   const canGoBack = history.length > 0;
 
@@ -423,6 +443,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     canGoBack,
     goBack,
     jumpTo,
+    clearPosition,
     pendingDecisions,
     choose,
     goNext,

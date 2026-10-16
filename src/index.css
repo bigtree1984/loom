@@ -54,7 +54,8 @@ textarea:focus {
   border-color: var(--loom-accent);
 }
 
-label {
+label,
+.modal-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
