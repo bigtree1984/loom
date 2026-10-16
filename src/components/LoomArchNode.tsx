@@ -1,4 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { PERSON_GLYPH_PATHS } from "../assets/personGlyph";
 
 const HANDLE_STYLE: React.CSSProperties = { opacity: 0, pointerEvents: "none" };
 
@@ -7,8 +8,8 @@ export interface LoomArchNodeData extends Record<string, unknown> {
   label: string;
   /** Untruncated original, shown as a hover tooltip when label was cut. */
   fullLabel: string;
-  /** Category dot color (CSS var), always shown regardless of highlight state. */
-  dotColor: string;
+  /** Human nodes get a person glyph (instead of the old category dot). */
+  isHuman?: boolean;
   /** Downloaded icon URL, or undefined if none is registered for this node yet. */
   iconUrl?: string;
   /** "hex" draws a pointy-top hexagon outline (SVG) instead of relying on
@@ -56,9 +57,15 @@ export function LoomArchNode({ data }: NodeProps) {
         className={`loom-arch-node-content${isHex ? " loom-arch-node-content-hex" : ""}`}
         title={isHex || d.fullLabel !== d.label ? d.fullLabel : undefined}
       >
-        {d.iconUrl && <img src={d.iconUrl} alt="" className="loom-arch-node-icon" />}
+        {d.iconUrl ? (
+          <img src={d.iconUrl} alt="" className="loom-arch-node-icon" />
+        ) : d.isHuman ? (
+          <svg viewBox="0 0 24 24" className="loom-arch-node-icon loom-arch-node-person" aria-label="人間">
+            <circle {...PERSON_GLYPH_PATHS.head} />
+            <path d={PERSON_GLYPH_PATHS.body} />
+          </svg>
+        ) : null}
         <div className="loom-arch-node-row">
-          <span className="loom-arch-node-dot" style={{ background: d.dotColor }} />
           <span className="loom-arch-node-label">{d.label}</span>
         </div>
       </div>

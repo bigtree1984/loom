@@ -24,7 +24,9 @@ export interface ArchNode {
    * same field for their lane, so it doubles as the migration path.
    */
   group?: string;
-  /** Dot color; falls back to a type-based default when omitted. */
+  /** @deprecated Accepted for old documents, ignored: the category dot was
+   * removed (lane tint already groups nodes, and the dot reused the route
+   * highlight hues). */
   colorToken?: ArchNodeColorToken;
   /** Key into the icon registry (src/assets/icons/{icon}.svg), e.g. "aws-s3". */
   icon?: string;
@@ -83,8 +85,28 @@ export interface Connection {
   label?: string;
 }
 
+/**
+ * Per-document colour overrides (#RRGGBB). Base names are the Bigtree Lab
+ * palette roles; everything else (route highlights, lane tints, dark mode)
+ * derives from them. `lanes` replaces the note figure's lane hues.
+ */
+export interface LoomTheme {
+  dk1?: string;
+  dk2?: string;
+  lt1?: string;
+  lt2?: string;
+  accent1?: string;
+  accent2?: string;
+  accent3?: string;
+  accent4?: string;
+  accent5?: string;
+  accent6?: string;
+  lanes?: string[];
+}
+
 export interface LoomDocument {
   version?: 2;
+  theme?: LoomTheme;
   architecture: {
     layout?: ArchLayout;
     columns: ArchColumn[];
@@ -100,6 +122,7 @@ export interface LoomDocument {
 /** Shape accepted on input (v1 or v2, possibly incomplete). */
 export interface LoomDocumentInput {
   version?: number;
+  theme?: unknown;
   architecture?: {
     layout?: ArchLayout;
     columns?: ArchColumn[];

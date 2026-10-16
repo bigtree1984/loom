@@ -39,11 +39,6 @@
   --loom-danger: var(--loom-c6);
 
   /* Architecture-node category dots */
-  --loom-dot-1: var(--bt-accent1);
-  --loom-dot-2: var(--bt-accent2);
-  --loom-dot-3: var(--bt-accent6);
-  --loom-dot-4: var(--bt-accent4);
-  --loom-dot-5: var(--bt-dk1);
 
   --loom-neutral-bg: var(--loom-panel-bg);
   /* Alternating column tints behind the architecture grid (both themes
@@ -73,10 +68,5 @@
     --loom-ink: var(--bt-dk1);
     --loom-on-accent: var(--bt-dk1); /* lightened fills need dark text */
 
-    --loom-dot-1: var(--loom-c1);
-    --loom-dot-2: var(--loom-c2);
-    --loom-dot-3: var(--loom-c6);
-    --loom-dot-4: var(--loom-c4);
-    --loom-dot-5: color-mix(in oklch, var(--bt-dk1) 70%, white);
   }
 }

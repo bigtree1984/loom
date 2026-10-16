@@ -57,15 +57,15 @@ Index in `columns` = the column's position (0 = leftmost).
   "type": "storage",           // "human" | "frontend" | "backend" | "agent" | "storage"
   "group": "storage",          // optional — the column id to place it in (see "Placement")
   "col": 2, "row": 0,          // optional — exact cell; omit to let Loom place it
-  "colorToken": "color_4",     // optional — "color_1".."color_5", the category dot's color.
-                                // Omit to fall back to a type-based default.
   "icon": "gcp-cloud-storage", // optional — key into the icon registry (see "Icons")
   "noteCol": 0, "noteRow": 1   // optional — cell in the note illustration view (see below); usually set by the user
 }
 ```
 
 A `human` node is an ordinary node; when it has no `group`, automatic
-placement puts it in its own column.
+placement puts it in its own column, and it is marked with a person glyph.
+(`colorToken` from older documents is accepted but ignored — nodes no longer
+carry a per-type colour dot.)
 
 ### ArchEdge
 
@@ -119,6 +119,30 @@ looping back:
 { "from": "t9", "to": "t10", "label": "テスト成功:デプロイへ進む" },
 { "from": "t9", "to": "t5", "label": "テスト失敗:実装へ差し戻し" }
 ```
+
+## Theme (colour overrides)
+
+Optional `theme` re-brands the whole diagram, on screen and in exports.
+Keys are the base palette roles, values `#RRGGBB`; route highlights, lane
+tints and dark mode are all derived from them. Invalid values are ignored.
+
+```jsonc
+"theme": {
+  "dk1": "#1F4437",      // ink: text and strong lines
+  "dk2": "#66776F",      // secondary text
+  "lt1": "#FFFFFF",      // background
+  "lt2": "#F7F4EE",      // panels
+  "accent1": "#2F6B55",  // route 1 (and the main accent)
+  "accent2": "#FFCB68",  // route 2
+  "accent3": "#66776F",  // route 4
+  "accent4": "#94A09A",  // edges
+  "accent5": "#C2C9C5",  // borders
+  "accent6": "#E2773A",  // route 3 / warnings
+  "lanes": ["#2F6B55", "#FFCB68"]  // note figure lane tints, in column order
+}
+```
+
+Values shown are the defaults (Bigtree Lab). Override only what you need.
 
 ## Placement
 

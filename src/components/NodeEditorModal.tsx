@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
-import type { ArchEdge, ArchNodeColorToken, ArchNodeType, LoomDocument } from "../types";
+import type { ArchEdge, ArchNodeType, LoomDocument } from "../types";
 import { nextId } from "../graph/ids";
 import { Modal } from "./Modal";
 
 const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
-const COLOR_TOKENS: ArchNodeColorToken[] = ["color_1", "color_2", "color_3", "color_4", "color_5"];
 
 interface Props {
   doc: LoomDocument;
@@ -22,7 +21,6 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const [type, setType] = useState<ArchNodeType>(existing?.type ?? "agent");
   // Column index as a string ("" = a new column at the right edge).
   const [col, setCol] = useState(existing?.col !== undefined ? String(existing.col) : "");
-  const [colorToken, setColorToken] = useState<ArchNodeColorToken | "">(existing?.colorToken ?? "");
   const [icon, setIcon] = useState(existing?.icon ?? "");
   const [edges, setEdges] = useState<ArchEdge[]>(
     doc.architecture.edges.filter((e) => e.from === nodeId || e.to === nodeId),
@@ -70,7 +68,6 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       // first free row there.
       ...(col === "" ? {} : { col: Number(col) }),
       ...(existing && existing.col === Number(col) && col !== "" ? { row: existing.row } : {}),
-      colorToken: colorToken || undefined,
       icon: icon.trim() || undefined,
     };
     const otherEdges = doc.architecture.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
@@ -123,17 +120,6 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
           {columns.map((c, i) => (
             <option key={c.id} value={String(i)}>
               {c.label || `列${i + 1}`}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        ドット色
-        <select value={colorToken} onChange={(e) => setColorToken(e.target.value as ArchNodeColorToken | "")}>
-          <option value="">(タイプから自動)</option>
-          {COLOR_TOKENS.map((c) => (
-            <option key={c} value={c}>
-              {c}
             </option>
           ))}
         </select>
