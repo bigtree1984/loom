@@ -127,3 +127,18 @@ describe("renderNoteFigure on bundled samples", () => {
     expect(fig.svg).not.toMatch(/var\(--/);
   });
 });
+
+it("draws an edge between vertically stacked neighbours in the note grid", () => {
+  const doc = normalizeLoomDocument({
+    architecture: {
+      layout: "grid",
+      nodes: [
+        { id: "a", label: "公開ストレージ", type: "backend", col: 0, row: 0, noteCol: 3, noteRow: 0 },
+        { id: "b", label: "通知サービス", type: "backend", col: 0, row: 1, noteCol: 3, noteRow: 1 },
+      ],
+      edges: [{ from: "a", to: "b" }],
+    },
+  });
+  const { svg } = renderNoteFigure({ doc, orderedTasks: [] });
+  expect((svg.match(/<line /g) ?? []).length).toBeGreaterThanOrEqual(1);
+});

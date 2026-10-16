@@ -30,6 +30,9 @@ const GRID_TEXT_PAD = 14;
 const HEX_TEXT_PAD = 14;
 export const NODE_LINE_H = Math.round(NODE_FONT * LINE_H_RATIO);
 
+/** Vertical gap between grid rows in the note figure, px. */
+export const NOTE_ROW_GAP = 96;
+
 export function noteGeometry(layout: ArchLayout, cols: number): NoteCellGeometry {
   if (layout === "hex") {
     const base = geometryFor("hex");
@@ -56,12 +59,14 @@ export function noteGeometry(layout: ArchLayout, cols: number): NoteCellGeometry
     layout,
     cols,
     pitchX,
-    pitchY: nodeH + 48,
+    // Row gap must fit an arrowhead plus visible shaft between vertically
+    // stacked nodes (it was 48px and those edges got dropped as too short).
+    pitchY: nodeH + NOTE_ROW_GAP,
     nodeW,
     nodeH,
     textW: nodeW - GRID_TEXT_PAD * 2,
     oddRowShift: 0,
-    tileH: nodeH + 48,
+    tileH: nodeH + NOTE_ROW_GAP,
   };
 }
 

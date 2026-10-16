@@ -202,12 +202,15 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     let [x1, y1] = clipToBox(b.x, b.y, a.x, a.y, hw, hh);
     let [x2, y2] = clipToBox(a.x, a.y, b.x, b.y, hw, hh);
     const len = Math.hypot(x2 - x1, y2 - y1);
-    if (len < ARROW * 1.5) return;
+    // Never drop an edge silently: if the nodes are too close for shaft +
+    // head, still draw the arrowhead (shrinking the shaft to zero).
+    if (len < 1) return;
     const ux = (x2 - x1) / len;
     const uy = (y2 - y1) / len;
     // Leave room for the arrowhead so the line doesn't poke through it.
-    x2 -= ux * ARROW;
-    y2 -= uy * ARROW;
+    const head = Math.min(ARROW, len * 0.6);
+    x2 -= ux * head;
+    y2 -= uy * head;
     if (e.bidirectional) {
       x1 += ux * ARROW;
       y1 += uy * ARROW;
