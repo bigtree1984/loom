@@ -12,6 +12,8 @@ import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
+import { NoteView } from "./components/NoteView";
+import { moveNodeToNoteCell, resetNoteCells } from "./graph/noteCells";
 import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
 import { ControlBar } from "./components/ControlBar";
 import { TaskDetailPanel } from "./components/TaskDetailPanel";
@@ -50,6 +52,7 @@ function App() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const present = mode === "present";
+  const note = mode === "note";
 
   const handleSetMode = useCallback((next: LoomMode) => {
     setMode(next);
@@ -145,6 +148,17 @@ function App() {
     loom.loadDocument({ ...loom.doc, architecture: { ...loom.doc.architecture, layout: next } });
   }, [loom]);
 
+  // note挿絵 view: only noteCol/noteRow change, never the screen col/row.
+  const handleNoteMove = useCallback(
+    (nodeId: string, col: number, row: number) => {
+      if (loom.doc) loom.loadDocument(moveNodeToNoteCell(loom.doc, nodeId, col, row));
+    },
+    [loom],
+  );
+  const handleNoteReset = useCallback(() => {
+    if (loom.doc) loom.loadDocument(resetNoteCells(loom.doc));
+  }, [loom]);
+
   const processFlow = useMemo(() => {
     if (!loom.doc) return { nodes: [], edges: [] };
     return toProcessFlow(loom.doc.flow, loom.archNodesById, loom.displayPosition, loom.routeColorByTask);
@@ -228,13 +242,19 @@ function App() {
             共有リンクをコピー
           </button>
           <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
-          <button
-            className="mode-toggle"
-            onClick={() => handleSetMode(present ? "edit" : "present")}
-            aria-pressed={present}
-          >
-            {present ? "編集モードへ" : "プレゼンモードへ"}
-          </button>
+          <div className="mode-switch" role="group" aria-label="モード">
+            {(
+              [
+                ["edit", "編集"],
+                ["present", "プレゼン"],
+                ["note", "note挿絵"],
+              ] as const
+            ).map(([m, label]) => (
+              <button key={m} onClick={() => handleSetMode(m)} aria-pressed={mode === m}>
+                {label}
+              </button>
+            ))}
+          </div>
           <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
             エージェント向け仕様
           </a>
@@ -256,24 +276,35 @@ function App() {
           />
         </ReactFlowProvider>
         <div className="architecture-column">
-          <ReactFlowProvider>
-            <ArchitecturePanel
-              nodes={archFlow.nodes}
-              edges={archFlow.edges}
-              laneHeaders={archFlow.laneHeaders}
-              tiles={archFlow.tiles}
-              onSwapLanes={handleSwapLanes}
-              onNodeDragEnd={handleNodeDragEnd}
-              onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
-              onAddNode={() => setEditor({ kind: "node", id: null })}
-              onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
-              onAddGroup={() => setEditor({ kind: "group", id: null })}
-              layout={loom.doc?.architecture.layout ?? "grid"}
-              onRelayout={handleRelayout}
+          {note && loom.doc ? (
+            <NoteView
+              doc={loom.doc}
+              currentTasks={loom.currentTasks}
+              highlight={loom.highlightedArchNodes}
+              onMoveNode={handleNoteMove}
+              onReset={handleNoteReset}
               onToggleLayout={handleToggleLayout}
-              readOnly={present}
             />
-          </ReactFlowProvider>
+          ) : (
+          <ReactFlowProvider>
+              <ArchitecturePanel
+                nodes={archFlow.nodes}
+                edges={archFlow.edges}
+                laneHeaders={archFlow.laneHeaders}
+                tiles={archFlow.tiles}
+                onSwapLanes={handleSwapLanes}
+                onNodeDragEnd={handleNodeDragEnd}
+                onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
+                onAddNode={() => setEditor({ kind: "node", id: null })}
+                onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
+                onAddGroup={() => setEditor({ kind: "group", id: null })}
+                layout={loom.doc?.architecture.layout ?? "grid"}
+                onRelayout={handleRelayout}
+                onToggleLayout={handleToggleLayout}
+                readOnly={present}
+              />
+            </ReactFlowProvider>
+          )}
           <TaskDetailPanel tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
         </div>
       </div>
