@@ -20,11 +20,12 @@ document; a Loom document with `//` in it will fail to parse.
 
 ```jsonc
 {
+  "version": 2,
   "architecture": {
+    "layout": "grid",              // optional — "grid" (default) | "hex" (honeycomb)
+    "columns": [ /* ArchColumn[] */ ],
     "nodes": [ /* ArchNode[] */ ],
-    "edges": [ /* ArchEdge[] */ ],
-    "groups": [ /* ArchGroup[], optional */ ],
-    "laneOrder": [ /* string[], optional — see "Lane order" below */ ]
+    "edges": [ /* ArchEdge[] */ ]
   },
   "flow": {
     "tasks": [ /* Task[] */ ],
@@ -33,51 +34,47 @@ document; a Loom document with `//` in it will fail to parse.
 }
 ```
 
+The architecture diagram is a grid of cells. Each node sits in one cell
+(`col`, `row`); `columns` gives the column headers left to right. **You
+don't have to compute cells**: give nodes a `group` (a column id) and
+leave `col`/`row` out, and Loom lays them out automatically the first time
+the document is opened (see "Placement").
+
+### ArchColumn
+
+```jsonc
+{ "id": "storage", "label": "データ保存先" }
+```
+
+Index in `columns` = the column's position (0 = leftmost).
+
 ### ArchNode
 
 ```jsonc
 {
   "id": "gcs",                 // unique, referenced by edges/tasks
   "label": "GCS\n(画像・音声・動画)", // "\n" makes a second line
-  "type": "storage",           // "human" | "frontend" | "backend" | "agent" | "storage" | "spacer"
-  "group": "storage",          // optional — which lane this node lives in (see "Lanes")
+  "type": "storage",           // "human" | "frontend" | "backend" | "agent" | "storage"
+  "group": "storage",          // optional — the column id to place it in (see "Placement")
+  "col": 2, "row": 0,          // optional — exact cell; omit to let Loom place it
   "colorToken": "color_4",     // optional — "color_1".."color_5", the category dot's color.
                                 // Omit to fall back to a type-based default.
-  "icon": "gcp-cloud-storage", // optional — key into the icon registry (see "Icons")
-  "rowOrder": 2                // optional — pins this node's row within its lane (see "Lanes")
+  "icon": "gcp-cloud-storage"  // optional — key into the icon registry (see "Icons")
 }
 ```
 
-`type: "human"` gets its own dedicated lane (like any other type's
-`__type_{type}` fallback) only when left ungrouped — set `group`
-explicitly to place a human node in a real declared lane instead.
-
-`type: "spacer"` is a layout-only placeholder: it takes up a normal row
-slot but renders as an empty dashed box (no dot, label, or icon), and
-should never be a task's `mainNode` or referenced by an edge. Use it to
-reserve blank space in a lane (combine with `rowOrder` to control where),
-or to keep a lane with no real nodes yet visible (see "Lanes").
+A `human` node is an ordinary node; when it has no `group`, automatic
+placement puts it in its own column.
 
 ### ArchEdge
 
-Directed `a` → `b`: an arrowhead is drawn at `b` (the target). Set
-`"bidirectional": true` to also draw an arrowhead at `a`. The direction is
-also used as a layout hint.
+Directed `from` → `to`: an arrowhead is drawn at `to`. Set
+`"bidirectional": true` to also draw one at `from`.
 
 ```jsonc
-{ "a": "script_21", "b": "gemini_tts", "label": "声を作らせる" }
-{ "a": "app", "b": "db", "bidirectional": true }
+{ "from": "api", "to": "gemini_tts", "label": "音声生成を依頼" }
+{ "from": "app", "to": "db", "bidirectional": true }
 ```
-
-### ArchGroup
-
-```jsonc
-{ "id": "storage", "label": "データ保存先" }
-```
-
-Declaring a group gives it a human-readable label shown as a lane header
-in the UI. A node's `group` field must match a declared group's `id` to
-land in that lane — otherwise it falls back to a lane keyed by its `type`.
 
 ### Task
 
@@ -122,39 +119,27 @@ looping back:
 { "from": "t9", "to": "t5", "label": "テスト失敗:実装へ差し戻し" }
 ```
 
-## Lanes
+## Placement
 
-The architecture diagram lays nodes out in vertical lanes (columns).
-Column membership comes from `group` (or `type` as a fallback for
-ungrouped nodes); row position within a lane comes from pipeline step
-order, or `rowOrder` when explicitly pinned.
+- **Nothing placed yet** (no node has `col`/`row` — the normal case for a
+  generated document): Loom groups nodes into columns by `group` (or by
+  `type` when ungrouped), orders the columns to keep connected columns
+  next to each other, orders each column by pipeline step, and writes the
+  result into `col`/`row`. After that the cells are fixed — the user's
+  drags and column swaps are never recomputed away.
+- **Mostly placed** (some nodes have cells): nodes without a cell go into
+  the first free row of their `group` column, or a new column at the right
+  if they have none.
+- Two nodes on one cell: the later one moves down to the next free row.
+- Empty cells are simply blank space; there is no placeholder node.
 
-A lane declared in `architecture.groups` is always shown, even with zero
-nodes in it yet — unlike a `type`-fallback lane, which only appears once
-some ungrouped node actually needs it.
+## Older (v1) documents
 
-`rowOrder` is a sort key, not an absolute row index — nodes are packed
-into consecutive rows in `rowOrder` order, so a gap in the numbers (e.g.
-0, 5, 10) does *not* leave blank rows. To actually reserve blank space
-within a lane, add a `type: "spacer"` node at the row you want empty.
-
-**Lane order** (left to right) is chosen automatically to minimize the
-number of edges that have to cross multiple lanes (a small Minimum
-Linear Arrangement over lanes — cheap since there are only ever a
-handful of lanes, even though the general problem is NP-hard). Set
-`architecture.laneOrder` to override this explicitly:
-
-```jsonc
-"laneOrder": ["__human__", "frontend", "backend", "storage"]
-```
-
-Entries are lane keys: a group id for a grouped lane, `"__human__"` for
-the human lane, or `"__type_{type}"` (e.g. `"__type_agent"`) for the
-fallback lane of ungrouped nodes of that type. Lanes present in the
-diagram but missing from the list are appended after it, so a partial
-override is safe. This field is normally written by the in-app lane-swap
-buttons, not hand-authored — but it's plain JSON, so an agent can set it
-too.
+Documents written for the previous format still load and are converted
+once: `groups` → `columns`, `laneOrder` → column order, `group` /
+`rowOrder` → `col` / `row`, `spacer` nodes are dropped, and edges
+`a`/`b` become `from`/`to` (read as a → b). Everything Loom writes back
+(share links, downloads) is v2.
 
 ## Icons
 

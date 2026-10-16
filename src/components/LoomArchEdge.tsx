@@ -3,6 +3,8 @@ import { BaseEdge, getStraightPath, useInternalNode, type EdgeProps, type Intern
 export interface LoomEdgeData extends Record<string, unknown> {
   active?: boolean;
   color: string;
+  /** Two-way edge: the dot shuttles back and forth instead of flowing one way. */
+  bidirectional?: boolean;
 }
 
 /** Where the ray from `intersectionNode`'s center toward `otherNode`'s
@@ -25,6 +27,15 @@ function getNodeIntersection(intersectionNode: InternalNode, otherNode: Internal
   const dy = otherPos.y + otherH2 - cy;
 
   if (dx === 0 && dy === 0) return { x: cx, y: cy };
+
+  if ((intersectionNode.data as { shape?: string } | undefined)?.shape === "hex") {
+    // Pointy-top hexagon inscribed in the box: vertical sides at x = ±w2
+    // (for |y| <= h2/2), slanted sides satisfy 0.5|x|/w2 + |y|/h2 = 1.
+    const tSide = dx !== 0 ? w2 / Math.abs(dx) : Infinity;
+    const tSlant = 1 / ((0.5 * Math.abs(dx)) / w2 + Math.abs(dy) / h2);
+    const t = Math.min(tSide, tSlant);
+    return { x: cx + dx * t, y: cy + dy * t };
+  }
 
   const scaleX = dx !== 0 ? w2 / Math.abs(dx) : Infinity;
   const scaleY = dy !== 0 ? h2 / Math.abs(dy) : Infinity;
@@ -63,8 +74,10 @@ export function LoomArchEdge({ id, source, target, style, label, labelStyle, dat
           <animateMotion
             dur="1.6s"
             repeatCount="indefinite"
-            keyPoints="0;1;0"
-            keyTimes="0;0.5;1"
+            // Flow source -> target, matching the arrowhead; only a
+            // two-way edge shuttles back and forth.
+            keyPoints={edgeData.bidirectional ? "0;1;0" : "0;1"}
+            keyTimes={edgeData.bidirectional ? "0;0.5;1" : "0;1"}
             calcMode="linear"
             path={path}
           />

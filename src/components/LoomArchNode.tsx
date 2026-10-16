@@ -11,11 +11,16 @@ export interface LoomArchNodeData extends Record<string, unknown> {
   dotColor: string;
   /** Downloaded icon URL, or undefined if none is registered for this node yet. */
   iconUrl?: string;
-  /** A layout-only placeholder (ArchNode.type "spacer") — renders as an
-   * empty box (the dashed border comes from the node's own style, set in
-   * toArchitectureFlow), no dot/label/icon content at all. */
-  isSpacer?: boolean;
+  /** "hex" draws a pointy-top hexagon outline (SVG) instead of relying on
+   * the node box's CSS border. LoomArchEdge also reads this to intersect
+   * edges with the hexagon instead of the bounding box. */
+  shape?: "rect" | "hex";
+  borderColor?: string;
+  borderWidth?: number;
 }
+
+/** Pointy-top hexagon filling a w x h box, in a 0..100 viewBox. */
+const HEX_POINTS = "50,0 100,25 100,75 50,100 0,75 0,25";
 
 /**
  * The actual on-screen connection point is computed by LoomArchEdge as a
@@ -30,19 +35,27 @@ export interface LoomArchNodeData extends Record<string, unknown> {
  */
 export function LoomArchNode({ data }: NodeProps) {
   const d = data as LoomArchNodeData;
-  if (d.isSpacer) {
-    return (
-      <>
-        <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
-        <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
-      </>
-    );
-  }
+  const isHex = d.shape === "hex";
   return (
     <>
       <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
-      <div className="loom-arch-node-content" title={d.fullLabel !== d.label ? d.fullLabel : undefined}>
+      {isHex && (
+        <svg className="loom-arch-node-hex" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+          <polygon
+            points={HEX_POINTS}
+            fill="var(--loom-panel-bg)"
+            stroke={d.borderColor}
+            strokeWidth={d.borderWidth ?? 1}
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+      <div
+        className={`loom-arch-node-content${isHex ? " loom-arch-node-content-hex" : ""}`}
+        title={isHex || d.fullLabel !== d.label ? d.fullLabel : undefined}
+      >
         {d.iconUrl && <img src={d.iconUrl} alt="" className="loom-arch-node-icon" />}
         <div className="loom-arch-node-row">
           <span className="loom-arch-node-dot" style={{ background: d.dotColor }} />

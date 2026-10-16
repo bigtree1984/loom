@@ -321,6 +321,9 @@ export interface LaneLayoutResult {
   rowHeight: number;
   laneGap: number;
   nodeWidth: number;
+  /** Integer grid cell per node: col = lane index, row = slot in the lane,
+   * offset so shorter lanes sit vertically centered (rounded down). */
+  cells: Map<string, { col: number; row: number }>;
 }
 
 /**
@@ -423,12 +426,14 @@ export function layoutByLanes(
 
   const positions = new Map<string, { x: number; y: number }>();
   const laneHeights = new Map<string, number>();
+  const cells = new Map<string, { col: number; row: number }>();
 
   byLane.forEach((laneNodes, key) => {
     const sorted = [...laneNodes].sort((a, b) => sortKeyOf(a.id) - sortKeyOf(b.id) || a.id.localeCompare(b.id));
     const x = (laneIndex.get(key) ?? 0) * (width + laneGap);
     sorted.forEach((n, row) => {
       positions.set(n.id, { x, y: row * (height + rowGap) });
+      cells.set(n.id, { col: laneIndex.get(key) ?? 0, row });
     });
     laneHeights.set(key, sorted.length * height + Math.max(0, sorted.length - 1) * rowGap);
   });
@@ -454,6 +459,7 @@ export function layoutByLanes(
     rowHeight: height + rowGap,
     laneGap,
     nodeWidth: width,
+    cells: centerCells(cells, byLane),
   };
 }
 
@@ -495,4 +501,20 @@ export function snapPositionToLane(
   });
   const rowOrder = rowHeight > 0 ? Math.max(0, Math.round(position.y / rowHeight)) : 0;
   return { laneKey: bestLane, rowOrder };
+}
+
+function centerCells(
+  cells: Map<string, { col: number; row: number }>,
+  byLane: Map<string, LaneNode[]>,
+): Map<string, { col: number; row: number }> {
+  const maxLen = Math.max(0, ...Array.from(byLane.values(), (l) => l.length));
+  const out = new Map<string, { col: number; row: number }>();
+  byLane.forEach((laneNodes) => {
+    const offset = Math.floor((maxLen - laneNodes.length) / 2);
+    laneNodes.forEach((n) => {
+      const c = cells.get(n.id);
+      if (c) out.set(n.id, { col: c.col, row: c.row + offset });
+    });
+  });
+  return out;
 }
