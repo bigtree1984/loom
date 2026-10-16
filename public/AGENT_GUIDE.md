@@ -189,7 +189,17 @@ convention. The vendor icons are excluded from the git repo itself
 (licensing terms permit using them in diagrams, not redistributing the
 icon set as a standalone asset pack), so they won't show up if you
 inspect the source on GitHub, only in the running app. A missing icon
-key just falls back to the category dot + label — nothing breaks.
+key just falls back to the label alone — nothing breaks.
+
+Google Cloud: the whole official icon pack is bundled. The key is
+`gcp-` + the product name in lowercase with spaces/underscores as `-`, e.g.
+`gcp-cloud-run`, `gcp-identity-aware-proxy`, `gcp-cloud-sql`,
+`gcp-pubsub`, `gcp-secret-manager`, `gcp-vertexai`, `gcp-firestore`,
+`gcp-identity-and-access-management`. Also `googlechrome` and `google`.
+AWS/Azure are a small starter set (`aws-s3`, `aws-lambda`, `aws-ec2`,
+`aws-api-gateway`, `aws-dynamodb`, `aws-cloudfront`, `azure-functions`,
+`azure-app-service`, `azure-storage-account`). Humans can also pick icons
+from a searchable list in the node editor.
 
 ## Label length
 

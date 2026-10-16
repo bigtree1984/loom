@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ArchEdge, ArchNodeType, LoomDocument } from "../types";
 import { nextId } from "../graph/ids";
 import { Modal } from "./Modal";
+import { IconPicker } from "./IconPicker";
 
 const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
 
@@ -125,10 +126,10 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
           ))}
         </select>
       </label>
-      <label>
+      <div className="modal-field">
         アイコン
-        <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="例: aws-s3(任意)" />
-      </label>
+        <IconPicker value={icon} onChange={setIcon} />
+      </div>
 
       <p className="modal-section-title">接続</p>
       {edges.length === 0 && <p className="modal-conn-row">まだ接続がありません</p>}

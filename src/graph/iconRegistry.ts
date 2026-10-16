@@ -15,3 +15,8 @@ export function iconUrlFor(key: string | undefined): string | undefined {
   if (!key) return undefined;
   return urlByKey.get(key);
 }
+
+/** Every registered icon key, sorted — for the node editor's picker. */
+export function listIconKeys(): string[] {
+  return [...urlByKey.keys()].sort();
+}

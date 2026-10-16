@@ -10,6 +10,8 @@
 - AWS: `aws-{service}`（例: `aws-s3`, `aws-lambda`, `aws-ec2`, `aws-api-gateway`, `aws-dynamodb`, `aws-cloudfront`）— AWS公式Asset Package (`Architecture-Service-Icons_*/Arch_*/48/`) から
 - GCP: `gcp-{service}`（例: `gcp-bigquery`, `gcp-cloud-storage`）— Google公式アイコンパックから
 - Azure: `azure-{service}`（例: `azure-storage-account`, `azure-functions`, `azure-app-service`）— Microsoft Learn配布の「Azure Architecture Icons」ZIPパックから
-- 汎用技術: そのままの名前（例: `python`, `flask`, `react`, `postgresql`）— [simple-icons](https://simpleicons.org/)（MITライセンス）から採取。単色ロゴなのでダークモードで見えなくなるのを防ぐため`fill="#8a887f"`を焼き込み済み。AWS/GCP/Azureの公式フルカラーアイコンは加工せずそのまま置く。
+- 汎用技術: そのままの名前（例: `python`, `flask`, `react`, `postgresql`, `googlechrome`, `google`）— [simple-icons](https://simpleicons.org/)（MITライセンス）から採取。単色ロゴなのでダークモードで見えなくなるのを防ぐため`fill="#8a887f"`を焼き込み済み。AWS/GCP/Azureの公式フルカラーアイコンは加工せずそのまま置く。
 
-現在揃っているのは上記の「定番スターターセット」のみ。他のサービスが必要になったら、ダウンロード済みのZIPパックから同じ命名規則で追加できる。
+Google Cloud は公式アイコンパック（`google-cloud-icons.zip`）の全アイコン（216種）を `gcp-{フォルダ名の_を-に}` で取り込み済み。AWS/Azure は上記の「定番スターターセット」のみ。
+
+ノード編集画面の「アイコン」欄で、登録済みのアイコンを検索して選べる。他のサービスが必要になったら、ダウンロード済みのZIPパックから同じ命名規則で追加できる。

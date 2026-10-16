@@ -751,3 +751,83 @@
   background: var(--loom-c1);
   color: #fff;
 }
+
+.icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.icon-picker-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--loom-text-primary);
+  min-height: 32px;
+}
+.icon-picker-current img,
+.icon-picker-missing {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.icon-picker-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--loom-border);
+  border-radius: 4px;
+}
+.icon-picker-current button {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.icon-picker-grid {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--loom-border);
+  border-radius: 6px;
+  padding: 6px;
+}
+.icon-picker-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 4px 2px;
+}
+.icon-picker-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 4px;
+}
+.icon-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  font-size: 10px;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  background: none;
+  overflow: hidden;
+}
+.icon-picker-item span {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icon-picker-item img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.icon-picker-item[aria-pressed="true"] {
+  border-color: var(--loom-c1);
+  background: var(--loom-panel-bg);
+}
+.icon-picker-empty {
+  font-size: 12px;
+  margin: 8px;
+}
