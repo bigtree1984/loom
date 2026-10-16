@@ -5,6 +5,7 @@ import "./styles.css";
 import sampleDataRaw from "./sample-data/pattern-showcase.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
+import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
 import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
@@ -167,6 +168,7 @@ function App() {
           <button onClick={handleCopyShareLink} disabled={!loom.doc}>
             共有リンクをコピー
           </button>
+          <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
           <a href="/AGENT_GUIDE.md" target="_blank" rel="noopener noreferrer" className="agent-guide-link">
             エージェント向け仕様
           </a>
