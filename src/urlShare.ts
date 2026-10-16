@@ -1,11 +1,11 @@
 import type { LoomDocument } from "./types";
 
-export type LoomMode = "edit" | "present";
+export type LoomMode = "edit" | "present" | "note";
 
 const HASH_PREFIX = "#doc=";
 
 function isMode(v: string | null | undefined): v is LoomMode {
-  return v === "edit" || v === "present";
+  return v === "edit" || v === "present" || v === "note";
 }
 
 /** Reads the `mode` param from the current fragment, if valid. */

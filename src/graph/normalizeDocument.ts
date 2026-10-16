@@ -57,7 +57,7 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
     ({ columns, nodes } = placeStragglers(nodesIn, columns));
   }
 
-  nodes = resolveCollisions(nodes);
+  nodes = resolveCollisions(nodes).map(sanitizeNoteCell);
 
   return {
     version: 2,
@@ -171,6 +171,15 @@ function resolveCollisions(nodes: ArchNode[]): ArchNode[] {
     if (row !== n.row) console.warn(`[loom] node "${n.id}" overlapped another node; moved to row ${row}`);
     return row === n.row ? n : { ...n, row };
   });
+}
+
+/** Keep a note cell only if it's a pair of non-negative integers. */
+function sanitizeNoteCell(n: ArchNode): ArchNode {
+  const ok = (v: unknown) => Number.isInteger(v) && (v as number) >= 0;
+  if (ok(n.noteCol) && ok(n.noteRow)) return n;
+  if (n.noteCol === undefined && n.noteRow === undefined) return n;
+  const { noteCol: _c, noteRow: _r, ...rest } = n;
+  return rest;
 }
 
 function stripHints(n: ArchNode): ArchNode {
