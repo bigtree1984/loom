@@ -5,6 +5,7 @@ import "./styles.css";
 import sampleDataRaw from "./sample-data/pattern-showcase.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
+import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
 import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
@@ -226,6 +227,7 @@ function App() {
           <button onClick={() => setShareDialogOpen(true)} disabled={!loom.doc}>
             共有リンクをコピー
           </button>
+          <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
           <button
             className="mode-toggle"
             onClick={() => handleSetMode(present ? "edit" : "present")}
