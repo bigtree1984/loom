@@ -9,6 +9,7 @@ interface Props {
   isPlaying: boolean;
   togglePlay: () => void;
   isComplete: boolean;
+  large?: boolean;
 }
 
 export function ControlBar({
@@ -20,6 +21,7 @@ export function ControlBar({
   isPlaying,
   togglePlay,
   isComplete,
+  large = false,
 }: Props) {
   // At most one task in a valid document has labeled outgoing connections
   // at a time in practice (forks are unlabeled) — the fixed primary slot
@@ -27,7 +29,7 @@ export function ControlBar({
   const decision = pendingDecisions[0];
 
   return (
-    <div className="control-bar">
+    <div className={`control-bar${large ? " control-bar-large" : ""}`}>
       <button className="control-back" onClick={goBack} disabled={!canGoBack}>
         戻る
       </button>
