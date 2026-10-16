@@ -83,7 +83,7 @@ export function ArchitecturePanel({
   picking = null,
 }: Props) {
   const readOnly = readOnlyProp || !!picking;
-  const geometry = geometryFor(layout);
+  const geometry = useMemo(() => geometryFor(layout), [layout]);
   const headerWidth = geometry.nodeW;
   const { screenToFlowPosition } = useReactFlow();
 
