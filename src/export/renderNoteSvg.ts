@@ -11,10 +11,8 @@ import {
   LINE_H_RATIO,
   MARGIN,
   NODE_FONT,
-  NOTE_COLORS as C,
   STROKE_MIN,
-  noteLaneColor,
-  noteRouteColor,
+  notePalette,
 } from "./noteSpec";
 import { textEm as textEmWidth, wrapText } from "./textWrap";
 
@@ -98,6 +96,9 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   const layout = arch.layout ?? "grid";
   const g: NoteCellGeometry = noteGeometry(layout, noteColumnCount(layout));
   const warnings: string[] = [];
+  const C = notePalette(doc.theme);
+  const noteRouteColor = C.route;
+  const noteLaneColor = C.lane;
 
   const svg = new Svg();
   let y = MARGIN;

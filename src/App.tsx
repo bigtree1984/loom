@@ -10,6 +10,7 @@ import { toArchitectureFlow } from "./graph/toArchitectureFlow";
 import { moveNodeToCell, swapColumns } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
+import { applyThemeToRoot } from "./graph/theme";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
 import { NoteView } from "./components/NoteView";
@@ -107,6 +108,12 @@ function App() {
     const timer = setTimeout(() => setShareStatus(null), 4000);
     return () => clearTimeout(timer);
   }, [shareStatus]);
+
+  // Per-document colour overrides (LoomDocument.theme) re-brand the whole
+  // app: they're set as --bt-* on <html>, from which theme.css derives the
+  // rest (routes, lane tints, dark mode).
+  const theme = loom.doc?.theme;
+  useEffect(() => applyThemeToRoot(theme), [theme]);
 
   const archFlow = useMemo(() => {
     if (!loom.doc) return EMPTY_ARCH;

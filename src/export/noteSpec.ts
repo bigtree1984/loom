@@ -1,3 +1,6 @@
+import type { LoomTheme } from "../types";
+import { resolveBase, resolveLaneHues } from "../graph/theme";
+
 /**
  * note.com figure standards (from 0018_note_fig/public/docs/FIGURE_RULES.md
  * and engine/note.css). note shrinks a 1240px image to 343pt on phones
@@ -22,59 +25,66 @@ export const LINE_H_RATIO = 1.25;
 export const MAX_CHARS_PER_LINE = 28;
 
 /**
- * Concrete light-theme values of src/theme.css (exports can't resolve CSS
- * variables, and must never pick up the dark theme). color-mix() results
- * are precomputed in sRGB.
+ * Concrete colours for a note figure. Exports can't resolve CSS variables
+ * and must never pick up the dark theme, so these are computed here from
+ * the light base palette — with the document's theme overrides applied
+ * (src/graph/theme.ts), so a re-branded document exports in its brand.
+ * Mixes mirror theme.css (sRGB approximations of its color-mix()).
  */
-export const NOTE_COLORS = {
-  bg: "#FFFFFF", // lt1
-  panel: "#F7F4EE", // lt2
-  border: "#C2C9C5", // accent5
-  text: "#1F4437", // dk1
-  textSub: "#66776F", // dk2
-  edge: "#94A09A", // accent4: muted lines must still read at 6px
-  laneA: "#EBEEEC", // accent5 32% into white
-  laneB: "#F9FAF9", // accent5 10% into white
-  onAccent: "#FFFFFF",
-} as const;
-
 export interface NoteRouteColor {
   strong: string;
   textOnStrong: string;
   light: string;
 }
 
-const mixIntoPanel = (hex: string, pct: number): string => {
-  const p = [0xf7, 0xf4, 0xee];
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return `#${c.map((v, i) => Math.round(v * pct + p[i] * (1 - pct)).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+export interface NotePalette {
+  bg: string;
+  panel: string;
+  border: string;
+  text: string;
+  textSub: string;
+  edge: string;
+  route: (i: number) => NoteRouteColor;
+  lane: (i: number) => { tile: string; chip: string };
+}
+
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const toHex = (c: number[]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+/** `pct` of `hex` mixed into `base`. */
+const mix = (hex: string, pct: number, base: string) => {
+  const a = rgb(hex);
+  const b = rgb(base);
+  return toHex(a.map((v, i) => v * pct + b[i] * (1 - pct)));
+};
+/** Relative luminance, to pick readable text on a strong fill. */
+const lum = (hex: string) => {
+  const [r, g, b] = rgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
-/** routeColors.ts, resolved: accent1, accent2, accent6, accent3. */
-export const NOTE_ROUTE_COLORS: NoteRouteColor[] = [
-  { strong: "#2F6B55", textOnStrong: "#FFFFFF", light: mixIntoPanel("#2F6B55", 0.15) },
-  { strong: "#FFCB68", textOnStrong: "#1F4437", light: mixIntoPanel("#FFCB68", 0.3) },
-  { strong: "#E2773A", textOnStrong: "#FFFFFF", light: mixIntoPanel("#E2773A", 0.15) },
-  { strong: "#66776F", textOnStrong: "#FFFFFF", light: mixIntoPanel("#66776F", 0.15) },
-];
-
-export const noteRouteColor = (i: number): NoteRouteColor => NOTE_ROUTE_COLORS[i % NOTE_ROUTE_COLORS.length];
+export function notePalette(theme?: LoomTheme): NotePalette {
+  const b = resolveBase(theme);
+  const routeHues = [b.accent1, b.accent2, b.accent6, b.accent3];
+  const routes: NoteRouteColor[] = routeHues.map((h) => ({
+    strong: h,
+    // Same rule as theme.css: light fills (e.g. yellow) get dark ink.
+    textOnStrong: lum(h) > 0.45 ? b.dk1 : b.lt1,
+    light: mix(h, lum(h) > 0.45 ? 0.3 : 0.15, b.lt2),
+  }));
+  const lanes = resolveLaneHues(theme).map((h) => ({ tile: mix(h, 0.22, b.lt1), chip: mix(h, 0.6, b.lt1) }));
+  return {
+    bg: b.lt1,
+    panel: b.lt2,
+    border: b.accent5,
+    text: b.dk1,
+    textSub: b.dk2,
+    edge: b.accent4, // muted lines must still read at 6px
+    route: (i) => routes[i % routes.length],
+    lane: (i) => lanes[i % lanes.length],
+  };
+}
 
 export const FONT_FAMILY = `'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif`;
-
-const mixIntoWhite = (hex: string, pct: number): string => {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return `#${c.map((v) => Math.round(v * pct + 255 * (1 - pct)).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
-};
-
-/**
- * Lane colours for the note figure (lane-less canvas: a node's lane is shown
- * by the tint of its cell plus a legend). The first four are Bigtree hues;
- * Bigtree has no blue/purple/rose/teal, so lanes 5-8 borrow muted hues
- * outside the palette — a candidate to add to the Figma variables if kept.
- * `tile` is the cell tint (kept pale so it never competes with the route
- * highlight inside the node); `chip` is the stronger swatch in the legend.
- */
-const LANE_HUES = ["#2F6B55", "#FFCB68", "#E2773A", "#66776F", "#4F7CAC", "#8A6FB0", "#C0607A", "#3A8C8C"];
-export const NOTE_LANE_COLORS = LANE_HUES.map((h) => ({ tile: mixIntoWhite(h, 0.22), chip: mixIntoWhite(h, 0.6) }));
-export const noteLaneColor = (i: number) => NOTE_LANE_COLORS[i % NOTE_LANE_COLORS.length];

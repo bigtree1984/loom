@@ -1,5 +1,6 @@
 import type { ArchColumn, ArchEdge, ArchNode, LoomDocument, LoomDocumentInput, Task } from "../types";
 import { computeStableOrder, HUMAN_LANE, layoutByLanes } from "./layout";
+import { sanitizeTheme } from "./theme";
 
 /**
  * The single load boundary: accepts a v1 or v2 document (possibly missing
@@ -59,8 +60,10 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
 
   nodes = resolveCollisions(nodes).map(sanitizeNoteCell);
 
+  const theme = sanitizeTheme(input.theme);
   return {
     version: 2,
+    ...(theme ? { theme } : {}),
     architecture: {
       layout: arch.layout === "hex" ? "hex" : "grid",
       columns,
