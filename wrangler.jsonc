@@ -1,0 +1,14 @@
+// Cloudflare Workers static-assets deploy (no Worker script — Loom is a
+// static SPA). Deployed from a local build so the gitignored vendor icons
+// are included: `npm run build && npx wrangler deploy`.
+{
+  "name": "loom",
+  "compatibility_date": "2026-10-12",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  // Served only at the custom domain (no *.workers.dev URL).
+  "workers_dev": false,
+  "routes": [{ "pattern": "loom.bigtree-lab.com", "custom_domain": true }]
+}

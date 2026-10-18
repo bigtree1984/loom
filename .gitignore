@@ -30,3 +30,6 @@ dist-ssr
 src/assets/icons/aws-*.svg
 src/assets/icons/gcp-*.svg
 src/assets/icons/azure-*.svg
+
+# Wrangler local state
+.wrangler
