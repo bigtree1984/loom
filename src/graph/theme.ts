@@ -6,6 +6,7 @@ import type { LoomTheme } from "../types";
  * the whole dark theme — is derived from these, so a document can re-brand
  * Loom by overriding just these values (LoomDocument.theme).
  */
+// 色の値は ~/0019_design_system/bigtree-lab から生成。手で編集しない（scripts/build.py）
 export const BASE_COLORS = {
   dk1: "#1F4437",
   dk2: "#66776F",
