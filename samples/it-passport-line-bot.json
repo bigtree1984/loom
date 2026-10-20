@@ -1,0 +1,269 @@
+{
+  "version": 2,
+  "architecture": {
+    "layout": "hex",
+    "columns": [
+      {
+        "id": "people",
+        "label": "利用者"
+      },
+      {
+        "id": "line",
+        "label": "LINE"
+      },
+      {
+        "id": "gcp_run",
+        "label": "GCP/実行"
+      },
+      {
+        "id": "gcp_data",
+        "label": "GCP/データ・AI"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "line_api",
+        "label": "LINE\nMessaging API",
+        "type": "backend",
+        "col": 1,
+        "row": 1
+      },
+      {
+        "id": "line_group",
+        "label": "妻の学習用LINEグループ",
+        "type": "human",
+        "col": 0,
+        "row": 1
+      },
+      {
+        "id": "scheduler",
+        "label": "Cloud Scheduler\n時間になったら\n動かす仕組み",
+        "type": "backend",
+        "icon": "gcp-cloud-scheduler",
+        "col": 2,
+        "row": 0
+      },
+      {
+        "id": "cloud_run",
+        "label": "Cloud Run\nボット本体",
+        "type": "backend",
+        "icon": "gcp-cloud-run",
+        "col": 2,
+        "row": 1
+      },
+      {
+        "id": "secret_manager",
+        "label": "Secret Manager\nLINEの鍵を\nしまう場所",
+        "type": "storage",
+        "icon": "gcp-secret-manager",
+        "col": 2,
+        "row": 2
+      },
+      {
+        "id": "gemini",
+        "label": "Gemini\nVertex AI",
+        "type": "agent",
+        "icon": "gcp-vertexai",
+        "col": 3,
+        "row": 2
+      },
+      {
+        "id": "bigquery",
+        "label": "BigQuery\n回答と成績の記録",
+        "type": "storage",
+        "icon": "gcp-bigquery",
+        "col": 3,
+        "row": 0
+      },
+      {
+        "id": "syllabus",
+        "label": "シラバス\n出題範囲の一覧",
+        "type": "storage",
+        "col": 3,
+        "row": 1
+      }
+    ],
+    "edges": [
+      {
+        "bidirectional": true,
+        "from": "line_api",
+        "to": "cloud_run"
+      },
+      {
+        "label": "平日3回 起動",
+        "from": "scheduler",
+        "to": "cloud_run"
+      },
+      {
+        "label": "鍵",
+        "from": "secret_manager",
+        "to": "cloud_run"
+      },
+      {
+        "bidirectional": true,
+        "from": "cloud_run",
+        "to": "gemini"
+      },
+      {
+        "bidirectional": true,
+        "from": "cloud_run",
+        "to": "bigquery"
+      },
+      {
+        "from": "syllabus",
+        "to": "cloud_run"
+      },
+      {
+        "bidirectional": true,
+        "from": "line_group",
+        "to": "line_api"
+      }
+    ]
+  },
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "出題の時間になる",
+        "description": "平日の8:30・12:00・16:30に、Cloud Schedulerがボット本体を起動する。グループでボットに「問題」と話しかけたときも、同じ流れで出題が始まる。",
+        "mainNode": "scheduler",
+        "inputNodes": [],
+        "outputNodes": [
+          "cloud_run"
+        ]
+      },
+      {
+        "id": "t2",
+        "label": "今のテーマを確認",
+        "description": "BigQueryの進み具合の記録から、いま勉強中のテーマ（シラバスの中分類）を読み、シラバスからその出題範囲を取り出す。",
+        "mainNode": "cloud_run",
+        "inputNodes": [
+          "bigquery",
+          "syllabus"
+        ],
+        "outputNodes": []
+      },
+      {
+        "id": "t3",
+        "label": "問題を作る",
+        "description": "出題範囲と、同じテーマでこれまでに出した問題をGeminiに渡し、重ならない4択問題と解説を作ってもらう。正解の位置が偏らないよう、選択肢の順番はボット側で並べ替える。",
+        "mainNode": "gemini",
+        "inputNodes": [
+          "cloud_run",
+          "syllabus",
+          "bigquery"
+        ],
+        "outputNodes": [
+          "cloud_run"
+        ]
+      },
+      {
+        "id": "t4",
+        "label": "記録して出題",
+        "description": "問題をBigQueryに記録してから、Secret ManagerのLINEの鍵を使って、LINE Messaging APIをコール。",
+        "mainNode": "cloud_run",
+        "inputNodes": [
+          "secret_manager"
+        ],
+        "outputNodes": [
+          "bigquery",
+          "line_api",
+          "line_group"
+        ]
+      },
+      {
+        "id": "t5",
+        "label": "回答する",
+        "description": "学習者がLINEで1〜4の番号ボタンを押して回答する。",
+        "mainNode": "line_api",
+        "inputNodes": [
+          "line_group"
+        ],
+        "outputNodes": [
+          "line_group"
+        ]
+      },
+      {
+        "id": "t6",
+        "label": "採点して解説を返す",
+        "description": "回答を受け取り、正誤をBigQueryに記録して、正解と解説をLINEグループに返す。",
+        "mainNode": "cloud_run",
+        "inputNodes": [
+          "line_api"
+        ],
+        "outputNodes": [
+          "bigquery",
+          "line_group"
+        ]
+      },
+      {
+        "id": "t7",
+        "label": "進み具合を判定",
+        "description": "同じテーマの直近3問がすべて正解かどうかを、BigQueryの記録で確かめる。",
+        "mainNode": "cloud_run",
+        "inputNodes": [
+          "bigquery"
+        ],
+        "outputNodes": []
+      },
+      {
+        "id": "t8",
+        "label": "次のテーマへ進む",
+        "description": "シラバスの順番で次の中分類をBigQueryに記録する。次の出題からは新しいテーマになる。",
+        "mainNode": "cloud_run",
+        "inputNodes": [
+          "syllabus"
+        ],
+        "outputNodes": [
+          "bigquery"
+        ]
+      },
+      {
+        "id": "task_1",
+        "label": "同じテーマにとどまる",
+        "description": "",
+        "mainNode": "cloud_run",
+        "inputNodes": [],
+        "outputNodes": [
+          "bigquery"
+        ]
+      }
+    ],
+    "connections": [
+      {
+        "from": "t1",
+        "to": "t2"
+      },
+      {
+        "from": "t2",
+        "to": "t3"
+      },
+      {
+        "from": "t3",
+        "to": "t4"
+      },
+      {
+        "from": "t5",
+        "to": "t6"
+      },
+      {
+        "from": "t4",
+        "to": "t5"
+      },
+      {
+        "from": "t6",
+        "to": "t7"
+      },
+      {
+        "from": "t7",
+        "to": "t8",
+        "label": "3問連続正解"
+      },
+      {
+        "from": "t7",
+        "to": "task_1",
+        "label": "連続正解未達成"
+      }
+    ]
+  }
+}

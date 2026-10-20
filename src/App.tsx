@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
-import sampleDataRaw from "./sample-data/pattern-showcase.json";
+import sampleDataRaw from "./sample-data/it-passport-line-bot.json";
 import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
