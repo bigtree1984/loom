@@ -15,6 +15,7 @@ import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { applyThemeToRoot } from "./graph/theme";
 import { toProcessFlow } from "./graph/toProcessFlow";
 import { ArchitecturePanel } from "./components/ArchitecturePanel";
+import { ActionCaption } from "./components/ActionCaption";
 import { NoteView } from "./components/NoteView";
 import { moveNodeToNoteCell, resetNoteCells } from "./graph/noteCells";
 import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
@@ -201,6 +202,7 @@ function App() {
       loom.doc.architecture.edges,
       loom.artifactState.before,
       compactArtifacts,
+      loom.artifactState.actionCount,
     );
   }, [loom.doc, loom.artifactState, loom.position, archFlow, compactArtifacts]);
   const noteArtifactState = useMemo(
@@ -456,6 +458,11 @@ function App() {
                 artifactNodes={artifactNodes}
                 compactArtifacts={loom.doc?.artifacts?.length ? compactArtifacts : undefined}
                 onToggleCompactArtifacts={() => setCompactArtifacts((v) => !v)}
+                overlay={
+                  loom.doc && loom.currentTasks.some((t) => t.actions?.length) ? (
+                    <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} />
+                  ) : null
+                }
                 onSwapLanes={handleSwapLanes}
                 onMoveLane={handleMoveLane}
                 onConnectNodes={handleConnectNodes}

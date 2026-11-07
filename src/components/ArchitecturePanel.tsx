@@ -47,6 +47,8 @@ interface Props {
   /** Prototype: undefined = the document has no artifacts (no toggle). */
   compactArtifacts?: boolean;
   onToggleCompactArtifacts?: () => void;
+  /** Rendered over the diagram (e.g. the playing action's caption). */
+  overlay?: React.ReactNode;
   onSwapLanes: (index: number) => void;
   /** Drag-and-drop lane reorder: column `from` ends up at index `to`. */
   onMoveLane: (from: number, to: number) => void;
@@ -77,6 +79,7 @@ export function ArchitecturePanel({
   artifactNodes = [],
   compactArtifacts,
   onToggleCompactArtifacts,
+  overlay,
   onSwapLanes,
   onMoveLane,
   onNodeDragEnd,
@@ -368,6 +371,7 @@ export function ArchitecturePanel({
         )}
       </div>
       <div className="rf-container">
+        {overlay}
         <ReactFlow
           nodes={[...tileNodes, ...headerNodes, ...pickNodes, ...artifactNodes, ...dropMarker]}
           edges={shownEdges}

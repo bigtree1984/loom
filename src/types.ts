@@ -83,6 +83,9 @@ export type ActionType = "create" | "send" | "receive" | "transform" | "derive" 
 /** One change to artifacts, done by the task's mainNode (the subject). */
 export interface TaskAction {
   type: ActionType;
+  /** Optional caption shown while this action plays; when absent one is
+   * generated from the type and artifacts (graph/describeAction.ts). */
+  label?: string;
   /** What the action takes / moves / looks at. */
   artifacts?: string[];
   /** What it produces (create / transform / derive). */

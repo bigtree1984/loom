@@ -69,6 +69,15 @@ function routed(path: string[], edges: { from: string; to: string }[]): string[]
  * replaying (looping) what the step did to them.
  * Ids are stable per artifact so React Flow keeps the same element.
  */
+/** One action gets ACTION_MS, then a short pause so the next starts once
+ * it has visibly finished; the loop rests HOLD_MS at the end. */
+export const ACTION_MS = 1300;
+export const GAP_MS = 400;
+export const HOLD_MS = 1000;
+export function stepLoopTiming(actions: number) {
+  return { duration: actions * (ACTION_MS + GAP_MS) + HOLD_MS };
+}
+
 /** Compact mode (crowded nodes): tools become small icons in a row, and
  * a node shows at most this many chips (+N for the rest). */
 export const MAX_CHIPS = 2;
@@ -153,6 +162,7 @@ export function toArtifactNodes(
   edges: { from: string; to: string }[] = [],
   before?: ArtifactPlaces,
   compact = false,
+  actionCount = 0,
 ): Node[] {
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
   const now = layoutSlots(artifacts, places, nodePos, g, compact, touched);
@@ -173,13 +183,9 @@ export function toArtifactNodes(
     return chipSlot(pos, g, n + (hasTools ? 0.7 : 0));
   };
 
-  // The step's actions play one after another in a shared loop. Each gets
-  // ACTION_MS, then a short pause, so the next starts once it has finished.
-  const ACTION_MS = 1300;
-  const GAP_MS = 400;
-  const HOLD_MS = 1000;
-  const actions = Math.max(1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1));
-  const duration = actions * (ACTION_MS + GAP_MS) + HOLD_MS;
+  // The step's actions play one after another in a shared loop (see
+  // stepLoopTiming; the action captions use the same clock).
+  const duration = stepLoopTiming(Math.max(actionCount, 1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1))).duration;
   const win = (m: ArtifactMotion) => ({
     from: ((m.start ?? 0) * (ACTION_MS + GAP_MS)) / duration,
     to: ((m.end ?? 0) * (ACTION_MS + GAP_MS) + ACTION_MS) / duration,
