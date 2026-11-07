@@ -34,6 +34,8 @@ export interface ArtifactMotion {
    * looping animation can play the actions one after another. */
   start?: number;
   end?: number;
+  /** First action that used it without moving it (for grouping chips). */
+  touchedAt?: number;
 }
 
 export type ArtifactPlaces = Map<string, ArtifactPlace>;
@@ -61,13 +63,18 @@ export function applyTask(
     // animate, so it must not stretch the chip's animation window.
     const onlyTouched = Object.keys(m).every((k) => k === "touched");
     if (!prev) {
-      motions.set(id, { id, fromNode: places.get(id)?.node, ...m, ...(onlyTouched ? {} : { start: step, end: step }) });
+      motions.set(id, {
+        id,
+        fromNode: places.get(id)?.node,
+        ...m,
+        ...(onlyTouched ? { touchedAt: step } : { start: step, end: step }),
+      });
       return;
     }
     motions.set(id, {
       ...prev,
       ...m,
-      ...(onlyTouched ? {} : { start: prev.start ?? step, end: step }),
+      ...(onlyTouched ? { touchedAt: prev.touchedAt ?? step } : { start: prev.start ?? step, end: step }),
     });
   };
   const place = (id: string) => places.get(id) ?? { visible: false };

@@ -1,6 +1,6 @@
 import { activeEdgeFlow, type NodeHighlight } from "../graph/taskFlow";
 import type { ArtifactMotion, ArtifactPlaces } from "../graph/artifactState";
-import { MAX_CHIPS } from "../graph/toArtifactNodes";
+import { MAX_CHIPS, motionGroupKey } from "../graph/toArtifactNodes";
 
 /** Same wrench as LoomArtifactChip (24-unit viewBox). */
 const WRENCH_PATH = "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z";
@@ -307,6 +307,26 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     });
     const folded = new Set<string>();
     const moreOn = new Map<string, number>();
+    // Compact: artifacts the step handled together share one pill
+    // ("画像 ほか2件").
+    const groupExtra = new Map<string, number>();
+    if (compact)
+      chipsOn.forEach((ids, node) => {
+        const leaders = new Map<string, string>();
+        const kept = ids.filter((id) => {
+          const key = motionGroupKey(artState.motions.get(id));
+          if (!key) return true;
+          const leader = leaders.get(key);
+          if (!leader) {
+            leaders.set(key, id);
+            return true;
+          }
+          folded.add(id);
+          groupExtra.set(leader, (groupExtra.get(leader) ?? 0) + 1);
+          return false;
+        });
+        chipsOn.set(node, kept);
+      });
     if (compact)
       chipsOn.forEach((ids, node) => {
         if (ids.length <= MAX_CHIPS) return;
@@ -337,7 +357,8 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
           `<rect x="${r(x0 + 22)}" y="${r(top + chipH / 2 - 7)}" width="14" height="14" transform="rotate(45 ${r(x0 + 29)} ${r(top + chipH / 2)})" fill="${on ? accentRoute.strong : C.textSub}"/>`,
       );
       artBottom = Math.max(artBottom, top + chipH);
-      const [line] = wrapText(a.label, { maxEm: (chipW - 70) / NODE_FONT, maxLines: 1 });
+      const extra = groupExtra.get(a.id);
+      const [line] = wrapText(extra ? `${a.label} ほか${extra}件` : a.label, { maxEm: (chipW - 70) / NODE_FONT, maxLines: 1 });
       nodeSvg.lines([line], x0 + 48, top + chipH / 2 + NODE_FONT * 0.36, {
         size: NODE_FONT,
         lh: NODE_LH,

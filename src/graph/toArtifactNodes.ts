@@ -99,6 +99,20 @@ interface SlotLayout {
   collapsed: Set<string>;
   /** Per node: the "+N" chip. */
   more: Map<string, { count: number; pos: { x: number; y: number } }>;
+  /** Compact: chips merged into the chip of another artifact that the same
+   * action moved / used together (member -> leader), and each leader's
+   * number of extra members ("画像 ほか2件"). */
+  groupedInto: Map<string, string>;
+  groupExtra: Map<string, number>;
+}
+
+/** Artifacts the current step handled in the same action, the same way,
+ * from the same place share a key (undefined = not handled this step). */
+export function motionGroupKey(m: ArtifactMotion | undefined): string | undefined {
+  if (!m || m.ghost) return undefined;
+  if (m.start !== undefined) return `m${m.start}|${m.fromNode ?? ""}|${m.born ? "b" : ""}${m.ended ? "e" : ""}`;
+  if (m.touchedAt !== undefined) return `t${m.touchedAt}`;
+  return undefined;
 }
 
 /** Lay out the visible artifacts of `places` on their nodes. In compact
@@ -110,8 +124,16 @@ function layoutSlots(
   g: CellGeometry,
   compact: boolean,
   mustShow: Set<string>,
+  motions?: Map<string, ArtifactMotion>,
 ): SlotLayout {
-  const out: SlotLayout = { pos: new Map(), icon: new Set(), collapsed: new Set(), more: new Map() };
+  const out: SlotLayout = {
+    pos: new Map(),
+    icon: new Set(),
+    collapsed: new Set(),
+    more: new Map(),
+    groupedInto: new Map(),
+    groupExtra: new Map(),
+  };
   const byNode = new Map<string, { tools: Artifact[]; chips: Artifact[] }>();
   artifacts.forEach((a) => {
     const p = places.get(a.id);
@@ -120,7 +142,8 @@ function layoutSlots(
     (a.tool ? e.tools : e.chips).push(a);
     byNode.set(p.node, e);
   });
-  byNode.forEach(({ tools, chips }, node) => {
+  byNode.forEach(({ tools, chips: allChips }, node) => {
+    let chips = allChips;
     const pos = nodePos.get(node)!;
     tools.forEach((a, i) => {
       if (compact) {
@@ -130,6 +153,22 @@ function layoutSlots(
     });
     // Chips hang below any tools attached to the same node.
     const off = tools.length ? 0.7 : 0;
+    // Compact: one chip per group of artifacts the step handled together.
+    if (compact && motions) {
+      const leaders = new Map<string, string>();
+      chips = chips.filter((a) => {
+        const key = motionGroupKey(motions.get(a.id));
+        if (!key) return true;
+        const leader = leaders.get(key);
+        if (!leader) {
+          leaders.set(key, a.id);
+          return true;
+        }
+        out.groupedInto.set(a.id, leader);
+        out.groupExtra.set(leader, (out.groupExtra.get(leader) ?? 0) + 1);
+        return false;
+      });
+    }
     let shown = chips;
     if (compact && chips.length > MAX_CHIPS) {
       const must = chips.filter((a) => mustShow.has(a.id));
@@ -165,10 +204,10 @@ export function toArtifactNodes(
   actionCount = 0,
 ): Node[] {
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
-  const now = layoutSlots(artifacts, places, nodePos, g, compact, touched);
+  const now = layoutSlots(artifacts, places, nodePos, g, compact, touched, motions);
   // Where each artifact sat before this step, so a move starts from its
   // actual old spot (chip, tool band or icon) rather than a default slot.
-  const prev = before ? layoutSlots(artifacts, before, nodePos, g, compact, touched) : undefined;
+  const prev = before ? layoutSlots(artifacts, before, nodePos, g, compact, touched, motions) : undefined;
   // Next free chip slot on a node before this step (where an arrival lands).
   const freeSlot = (node: string) => {
     const pos = nodePos.get(node)!;
@@ -209,7 +248,7 @@ export function toArtifactNodes(
     if (!p?.node) return; // never born
     const pos = nodePos.get(p.node);
     if (!pos) return;
-    if (now.collapsed.has(a.id)) return; // inside the node's +N chip
+    if (now.collapsed.has(a.id) || now.groupedInto.has(a.id)) return; // inside a +N / group chip
     const m = motions.get(a.id);
     const icon = now.icon.has(a.id);
     const slot = now.pos.get(a.id) ?? (a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
@@ -220,8 +259,9 @@ export function toArtifactNodes(
       anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? undefined : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
     else if (m?.born) anim = { kind: "born", ...win(m) };
     else if (m?.ended) anim = { kind: "ended", ...win(m) };
+    const extra = now.groupExtra.get(a.id);
     const data: LoomArtifactChipData = {
-      label: a.label,
+      label: extra ? `${a.label} ほか${extra}件` : a.label,
       active: touched.has(a.id),
       color,
       // A chip used up in this step stays visible to play its fade.
@@ -245,13 +285,28 @@ export function toArtifactNodes(
   // the edges, landing where any arrival would (the next free chip slot),
   // gone on arrival.
   let gi = 0;
+  // Compact: copies that fly together (same action, same route) fly as one.
+  const ghostGroups = new Map<string, number>();
+  const ghostSeen = new Set<string>();
+  if (compact)
+    motions.forEach((m) => {
+      if (!m.ghost) return;
+      const k = `${m.start}|${m.fromNode}|${m.toNode}`;
+      ghostGroups.set(k, (ghostGroups.get(k) ?? 0) + 1);
+    });
   motions.forEach((m, key) => {
     if (!m.ghost || !m.toNode || !m.path) return;
+    const gk = `${m.start}|${m.fromNode}|${m.toNode}`;
+    if (compact) {
+      if (ghostSeen.has(gk)) return;
+      ghostSeen.add(gk);
+    }
+    const ghostExtra = compact ? (ghostGroups.get(gk) ?? 1) - 1 : 0;
     if (!nodePos.get(m.toNode)) return;
     const end = freeSlot(m.toNode);
     const a = artifacts.find((x) => x.id === m.id);
     const data: LoomArtifactChipData = {
-      label: a?.label ?? m.id,
+      label: ghostExtra ? `${a?.label ?? m.id} ほか${ghostExtra}件` : (a?.label ?? m.id),
       active: true,
       color,
       anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...win(m) },
