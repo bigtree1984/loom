@@ -150,15 +150,17 @@ export function applyTask(
 export function artifactStateAt(
   doc: LoomDocument,
   steps: string[][],
-): { places: ArtifactPlaces; motions: Map<string, ArtifactMotion> } {
+): { places: ArtifactPlaces; motions: Map<string, ArtifactMotion>; before: ArtifactPlaces } {
   const artifacts = doc.artifacts ?? [];
   const byId = new Map(artifacts.map((a) => [a.id, a]));
   const tasks = new Map(doc.flow.tasks.map((t) => [t.id, t]));
   const places = initialPlaces(artifacts);
   let motions = new Map<string, ArtifactMotion>();
   let prev = new Set<string>();
+  let before: ArtifactPlaces = new Map(places);
   steps.forEach((step, i) => {
     const last = i === steps.length - 1;
+    if (last) before = new Map([...places].map(([k, v]) => [k, { ...v }]));
     motions = new Map();
     step.forEach((id) => {
       if (prev.has(id)) return;
@@ -167,5 +169,5 @@ export function artifactStateAt(
     });
     prev = new Set(step);
   });
-  return { places, motions };
+  return { places, motions, before };
 }

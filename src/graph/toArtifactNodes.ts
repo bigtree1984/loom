@@ -69,6 +69,30 @@ function routed(path: string[], edges: { from: string; to: string }[]): string[]
  * replaying (looping) what the step did to them.
  * Ids are stable per artifact so React Flow keeps the same element.
  */
+/** The slot every visible artifact occupies for a given set of places
+ * (same stacking rules as the chips themselves). */
+function slotsFor(
+  artifacts: Artifact[],
+  places: ArtifactPlaces,
+  nodePos: Map<string, { x: number; y: number }>,
+  g: CellGeometry,
+): Map<string, { x: number; y: number }> {
+  const chips = new Map<string, number>();
+  const tools = new Map<string, number>();
+  const out = new Map<string, { x: number; y: number }>();
+  artifacts.forEach((a) => {
+    const p = places.get(a.id);
+    if (!p?.visible || !p.node) return;
+    const pos = nodePos.get(p.node);
+    if (!pos) return;
+    const m = a.tool ? tools : chips;
+    const i = m.get(p.node) ?? 0;
+    m.set(p.node, i + 1);
+    out.set(a.id, a.tool ? toolSlot(pos, g, i) : chipSlot(pos, g, i));
+  });
+  return out;
+}
+
 export function toArtifactNodes(
   artifacts: Artifact[],
   places: ArtifactPlaces,
@@ -78,7 +102,11 @@ export function toArtifactNodes(
   color: string,
   stepKey: string,
   edges: { from: string; to: string }[] = [],
+  before?: ArtifactPlaces,
 ): Node[] {
+  // Where each artifact sat before this step, so a move starts from the
+  // chip's (or tool band's) actual old spot rather than a default slot.
+  const startSlots = before ? slotsFor(artifacts, before, nodePos, g) : new Map();
   const slotIndex = new Map<string, number>();
   const toolIndex = new Map<string, number>();
   const nextSlot = (node: string, tool = false) => {
@@ -101,12 +129,12 @@ export function toArtifactNodes(
   });
   // Waypoints as offsets from the chip's final slot (intermediate nodes use
   // their first slot).
-  const pointsFor = (path: string[], end: { x: number; y: number }) =>
+  const pointsFor = (path: string[], end: { x: number; y: number }, start?: { x: number; y: number }) =>
     routed(path, edges)
       .map((n) => nodePos.get(n))
       .filter((p): p is { x: number; y: number } => !!p)
       .map((p, i, all) => {
-        const s = i === all.length - 1 ? end : chipSlot(p, g, 0);
+        const s = i === all.length - 1 ? end : i === 0 && start ? start : chipSlot(p, g, 0);
         return { dx: s.x - end.x, dy: s.y - end.y };
       });
 
@@ -125,7 +153,7 @@ export function toArtifactNodes(
     let anim: ChipAnim | undefined;
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
-    if (m?.path && m.path.length > 1 && p.visible) anim = { kind: "move", points: pointsFor(m.path, slot), fadeIn: !!m.born, ...win(m) };
+    if (m?.path && m.path.length > 1 && p.visible) anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? undefined : startSlots.get(a.id)), fadeIn: !!m.born, ...win(m) };
     else if (m?.born) anim = { kind: "born", ...win(m) };
     else if (m?.ended) anim = { kind: "ended", ...win(m) };
     const data: LoomArtifactChipData = {
@@ -156,7 +184,7 @@ export function toArtifactNodes(
       label: a?.label ?? m.id,
       active: true,
       color,
-      anim: { kind: "move", points: pointsFor(m.path, end), fadeOut: true, ...win(m) },
+      anim: { kind: "move", points: pointsFor(m.path, end, startSlots.get(m.id)), fadeOut: true, ...win(m) },
       stepKey: `${stepKey}-${gi++}`,
     };
     out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6));

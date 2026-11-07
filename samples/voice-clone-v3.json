@@ -95,11 +95,6 @@
   },
   "artifacts": [
     {
-      "id": "script",
-      "label": "読み上げ文 1,013本",
-      "at": "me"
-    },
-    {
       "id": "wavs",
       "label": "音声 1,013本"
     },
@@ -131,10 +126,7 @@
         "description": "日本語420文と英語593文。合計60分。ここだけは自分でやる。",
         "actions": [
           {
-            "type": "derive",
-            "artifacts": [
-              "script"
-            ],
+            "type": "create",
             "results": [
               "wavs"
             ]
