@@ -44,9 +44,6 @@ interface Props {
   tiles: LaneTile[];
   /** v3 artifact chips (decorative React Flow nodes), drawn above nodes. */
   artifactNodes?: Node[];
-  /** Prototype: undefined = the document has no artifacts (no toggle). */
-  compactArtifacts?: boolean;
-  onToggleCompactArtifacts?: () => void;
   /** Rendered over the diagram (e.g. the playing action's caption). */
   overlay?: React.ReactNode;
   onSwapLanes: (index: number) => void;
@@ -77,8 +74,6 @@ export function ArchitecturePanel({
   laneHeaders,
   tiles,
   artifactNodes = [],
-  compactArtifacts,
-  onToggleCompactArtifacts,
   overlay,
   onSwapLanes,
   onMoveLane,
@@ -358,11 +353,6 @@ export function ArchitecturePanel({
         })()}
         {!readOnly && (
           <div className="panel-header-actions">
-            {compactArtifacts !== undefined && (
-              <button onClick={onToggleCompactArtifacts} aria-pressed={compactArtifacts}>
-                {compactArtifacts ? "札：まとめる" : "札：全部出す"}
-              </button>
-            )}
             <button onClick={onToggleLayout}>{layout === "grid" ? "ハニカム表示" : "グリッド表示"}</button>
             <button onClick={onRelayout}>整列し直す</button>
             <button onClick={onAddGroup}>+列追加</button>

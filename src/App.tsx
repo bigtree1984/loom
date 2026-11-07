@@ -185,8 +185,9 @@ function App() {
     return toArchitectureFlow(arch, loom.highlightedArchNodes, !present);
   }, [loom.doc, loom.highlightedArchNodes, present]);
 
-  // Prototype toggle: compact artifacts (tool icons, +N overflow) vs full.
-  const [compactArtifacts, setCompactArtifacts] = useState(false);
+  // Artifacts are always drawn compact (tool icons, grouped chips, +N):
+  // with few artifacts it looks the same as the full form.
+  const compactArtifacts = true;
   // v3 artifact chips on the architecture diagram.
   const artifactNodes = useMemo(() => {
     if (!loom.doc?.artifacts?.length || !loom.artifactState) return [];
@@ -204,10 +205,10 @@ function App() {
       compactArtifacts,
       loom.artifactState.actionCount,
     );
-  }, [loom.doc, loom.artifactState, loom.position, archFlow, compactArtifacts]);
+  }, [loom.doc, loom.artifactState, loom.position, archFlow]);
   const noteArtifactState = useMemo(
     () => (loom.artifactState ? { ...loom.artifactState, compact: compactArtifacts } : null),
-    [loom.artifactState, compactArtifacts],
+    [loom.artifactState],
   );
 
   // Swaps column `index` with its right-hand neighbour — header and every
@@ -456,8 +457,6 @@ function App() {
                 laneHeaders={archFlow.laneHeaders}
                 tiles={archFlow.tiles}
                 artifactNodes={artifactNodes}
-                compactArtifacts={loom.doc?.artifacts?.length ? compactArtifacts : undefined}
-                onToggleCompactArtifacts={() => setCompactArtifacts((v) => !v)}
                 overlay={
                   loom.doc && loom.currentTasks.some((t) => t.actions?.length) ? (
                     <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} />
