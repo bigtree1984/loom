@@ -107,6 +107,9 @@ export function toArtifactNodes(
   // Where each artifact sat before this step, so a move starts from the
   // chip's (or tool band's) actual old spot rather than a default slot.
   const startSlots = before ? slotsFor(artifacts, before, nodePos, g) : new Map();
+  // Chips (not tools) on a node before this step: the next free slot.
+  const beforeCount = (node: string) =>
+    before ? artifacts.filter((a) => !a.tool && before.get(a.id)?.visible && before.get(a.id)?.node === node).length : 0;
   const slotIndex = new Map<string, number>();
   const toolIndex = new Map<string, number>();
   const nextSlot = (node: string, tool = false) => {
@@ -176,9 +179,10 @@ export function toArtifactNodes(
     if (!m.ghost || !m.toNode || !m.path) return;
     const to = nodePos.get(m.toNode);
     if (!to) return;
-    // A copy / signal flies into the receiving node itself (its centre) and
-    // is absorbed there, clear of the chips hanging below that node.
-    const end = { x: to.x + (g.nodeW - CHIP_W) / 2, y: to.y + (g.nodeH - CHIP_H) / 2 };
+    // A copy / signal lands where any arriving artifact would — the next
+    // free chip slot on the receiving node — then fades. The step's actions
+    // play in turn, so it is gone before anything is born in that slot.
+    const end = chipSlot(to, g, beforeCount(m.toNode));
     const a = artifacts.find((x) => x.id === m.id);
     const data: LoomArtifactChipData = {
       label: a?.label ?? m.id,
