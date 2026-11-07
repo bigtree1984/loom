@@ -69,30 +69,79 @@ function routed(path: string[], edges: { from: string; to: string }[]): string[]
  * replaying (looping) what the step did to them.
  * Ids are stable per artifact so React Flow keeps the same element.
  */
-/** The slot every visible artifact occupies for a given set of places
- * (same stacking rules as the chips themselves). */
-function slotsFor(
+/** Compact mode (crowded nodes): tools become small icons in a row, and
+ * a node shows at most this many chips (+N for the rest). */
+export const MAX_CHIPS = 2;
+export const TOOL_ICON = 18;
+
+export function toolIconSlot(nodePos: { x: number; y: number }, g: CellGeometry, i: number, n: number) {
+  const gap = 3;
+  const rowW = n * TOOL_ICON + (n - 1) * gap;
+  const base = g.oddRowShift > 0 ? g.nodeH * 0.7 : g.nodeH - TOOL_ICON * 0.6;
+  return { x: nodePos.x + (g.nodeW - rowW) / 2 + i * (TOOL_ICON + gap), y: nodePos.y + base };
+}
+
+interface SlotLayout {
+  /** Where each shown artifact sits. */
+  pos: Map<string, { x: number; y: number }>;
+  /** Shown as a small tool icon (compact). */
+  icon: Set<string>;
+  /** Collapsed into a node's "+N" chip (compact). */
+  collapsed: Set<string>;
+  /** Per node: the "+N" chip. */
+  more: Map<string, { count: number; pos: { x: number; y: number } }>;
+}
+
+/** Lay out the visible artifacts of `places` on their nodes. In compact
+ * mode the step's touched artifacts are always shown individually. */
+function layoutSlots(
   artifacts: Artifact[],
   places: ArtifactPlaces,
   nodePos: Map<string, { x: number; y: number }>,
   g: CellGeometry,
-): Map<string, { x: number; y: number }> {
-  const chips = new Map<string, number>();
-  const tools = new Map<string, number>();
-  const out = new Map<string, { x: number; y: number }>();
+  compact: boolean,
+  mustShow: Set<string>,
+): SlotLayout {
+  const out: SlotLayout = { pos: new Map(), icon: new Set(), collapsed: new Set(), more: new Map() };
+  const byNode = new Map<string, { tools: Artifact[]; chips: Artifact[] }>();
   artifacts.forEach((a) => {
     const p = places.get(a.id);
-    if (!p?.visible || !p.node) return;
-    const pos = nodePos.get(p.node);
-    if (!pos) return;
-    const m = a.tool ? tools : chips;
-    const i = m.get(p.node) ?? 0;
-    m.set(p.node, i + 1);
-    out.set(a.id, a.tool ? toolSlot(pos, g, i) : chipSlot(pos, g, i));
+    if (!p?.visible || !p.node || !nodePos.has(p.node)) return;
+    const e = byNode.get(p.node) ?? { tools: [], chips: [] };
+    (a.tool ? e.tools : e.chips).push(a);
+    byNode.set(p.node, e);
+  });
+  byNode.forEach(({ tools, chips }, node) => {
+    const pos = nodePos.get(node)!;
+    tools.forEach((a, i) => {
+      if (compact) {
+        out.icon.add(a.id);
+        out.pos.set(a.id, toolIconSlot(pos, g, i, tools.length));
+      } else out.pos.set(a.id, toolSlot(pos, g, i));
+    });
+    // Chips hang below any tools attached to the same node.
+    const off = tools.length ? 0.7 : 0;
+    let shown = chips;
+    if (compact && chips.length > MAX_CHIPS) {
+      const must = chips.filter((a) => mustShow.has(a.id));
+      const rest = chips.filter((a) => !mustShow.has(a.id));
+      const room = Math.max(0, MAX_CHIPS - must.length);
+      shown = [...chips.filter((a) => must.includes(a) || rest.slice(0, room).includes(a))];
+      const hidden = chips.filter((a) => !shown.includes(a));
+      hidden.forEach((a) => out.collapsed.add(a.id));
+      if (hidden.length) out.more.set(node, { count: hidden.length, pos: chipSlot(pos, g, shown.length + off) });
+    }
+    shown.forEach((a, i) => out.pos.set(a.id, chipSlot(pos, g, i + off)));
   });
   return out;
 }
 
+/**
+ * React Flow nodes for the artifacts (DESIGN_v3 §3.4): every artifact born
+ * so far, on the node it is on now; the current step's ones in `color`,
+ * replaying (looping) what the step did to them, one action after another.
+ * Ids are stable per artifact so React Flow keeps the same element.
+ */
 export function toArtifactNodes(
   artifacts: Artifact[],
   places: ArtifactPlaces,
@@ -103,26 +152,29 @@ export function toArtifactNodes(
   stepKey: string,
   edges: { from: string; to: string }[] = [],
   before?: ArtifactPlaces,
+  compact = false,
 ): Node[] {
-  // Where each artifact sat before this step, so a move starts from the
-  // chip's (or tool band's) actual old spot rather than a default slot.
-  const startSlots = before ? slotsFor(artifacts, before, nodePos, g) : new Map();
-  // Chips (not tools) on a node before this step: the next free slot.
-  const beforeCount = (node: string) =>
-    before ? artifacts.filter((a) => !a.tool && before.get(a.id)?.visible && before.get(a.id)?.node === node).length : 0;
-  const slotIndex = new Map<string, number>();
-  const toolIndex = new Map<string, number>();
-  const nextSlot = (node: string, tool = false) => {
-    const m = tool ? toolIndex : slotIndex;
-    const i = m.get(node) ?? 0;
-    m.set(node, i + 1);
-    return i;
-  };
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
-  const out: Node[] = [];
-  // The step's actions play one after another in a shared loop.
-  // Each action gets ACTION_MS, then a short pause, so the next action only
-  // starts once the previous one has visibly finished.
+  const now = layoutSlots(artifacts, places, nodePos, g, compact, touched);
+  // Where each artifact sat before this step, so a move starts from its
+  // actual old spot (chip, tool band or icon) rather than a default slot.
+  const prev = before ? layoutSlots(artifacts, before, nodePos, g, compact, touched) : undefined;
+  // Next free chip slot on a node before this step (where an arrival lands).
+  const freeSlot = (node: string) => {
+    const pos = nodePos.get(node)!;
+    if (!prev) return chipSlot(pos, g, 0);
+    let n = 0;
+    prev.pos.forEach((_, id) => {
+      const a = artifacts.find((x) => x.id === id);
+      if (a && !a.tool && before?.get(id)?.node === node) n++;
+    });
+    if (prev.more.has(node)) n++;
+    const hasTools = artifacts.some((x) => x.tool && before?.get(x.id)?.visible && before?.get(x.id)?.node === node);
+    return chipSlot(pos, g, n + (hasTools ? 0.7 : 0));
+  };
+
+  // The step's actions play one after another in a shared loop. Each gets
+  // ACTION_MS, then a short pause, so the next starts once it has finished.
   const ACTION_MS = 1300;
   const GAP_MS = 400;
   const HOLD_MS = 1000;
@@ -133,8 +185,9 @@ export function toArtifactNodes(
     to: ((m.end ?? 0) * (ACTION_MS + GAP_MS) + ACTION_MS) / duration,
     duration,
   });
-  // Waypoints as offsets from the chip's final slot (intermediate nodes use
-  // their first slot).
+
+  // Waypoints as offsets from the final spot (intermediate nodes use their
+  // first chip slot).
   const pointsFor = (path: string[], end: { x: number; y: number }, start?: { x: number; y: number }) =>
     routed(path, edges)
       .map((n) => nodePos.get(n))
@@ -144,22 +197,21 @@ export function toArtifactNodes(
         return { dx: s.x - end.x, dy: s.y - end.y };
       });
 
+  const out: Node[] = [];
   artifacts.forEach((a) => {
     const p = places.get(a.id);
     if (!p?.node) return; // never born
     const pos = nodePos.get(p.node);
     if (!pos) return;
+    if (now.collapsed.has(a.id)) return; // inside the node's +N chip
     const m = motions.get(a.id);
-    const isTool = !!a.tool;
-    const slot = isTool
-      ? toolSlot(pos, g, p.visible ? nextSlot(p.node, true) : 0)
-      : p.visible
-        ? chipSlot(pos, g, nextSlot(p.node))
-        : chipSlot(pos, g, 0);
+    const icon = now.icon.has(a.id);
+    const slot = now.pos.get(a.id) ?? (a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
     let anim: ChipAnim | undefined;
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
-    if (m?.path && m.path.length > 1 && p.visible) anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? undefined : startSlots.get(a.id)), fadeIn: !!m.born, ...win(m) };
+    if (m?.path && m.path.length > 1 && p.visible)
+      anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? undefined : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
     else if (m?.born) anim = { kind: "born", ...win(m) };
     else if (m?.ended) anim = { kind: "ended", ...win(m) };
     const data: LoomArtifactChipData = {
@@ -169,37 +221,48 @@ export function toArtifactNodes(
       // A chip used up in this step stays visible to play its fade.
       hidden: !p.visible && !m?.ended,
       anim,
-      tool: isTool,
+      tool: !!a.tool && !icon,
+      toolIcon: icon,
       stepKey,
     };
-    out.push(chipNode(`artifact-${a.id}`, slot, data, p.visible ? 5 : 4, isTool));
+    const size = icon ? { w: TOOL_ICON, h: TOOL_ICON } : a.tool ? { w: TOOL_W, h: TOOL_H } : { w: CHIP_W, h: CHIP_H };
+    out.push(chipNode(`artifact-${a.id}`, slot, data, p.visible ? 5 : 4, size));
+  });
+
+  // "+N" chips for crowded nodes (compact).
+  now.more.forEach(({ count, pos }, node) => {
+    const data: LoomArtifactChipData = { label: `+${count}`, stepKey, more: true };
+    out.push(chipNode(`artifact-more-${node}`, pos, data, 5, { w: 40, h: CHIP_H }));
   });
 
   // Flying copies (keep) and transient signals: sender -> receiver along
-  // the edges, gone on arrival.
+  // the edges, landing where any arrival would (the next free chip slot),
+  // gone on arrival.
   let gi = 0;
   motions.forEach((m, key) => {
     if (!m.ghost || !m.toNode || !m.path) return;
-    const to = nodePos.get(m.toNode);
-    if (!to) return;
-    // A copy / signal lands where any arriving artifact would — the next
-    // free chip slot on the receiving node — then fades. The step's actions
-    // play in turn, so it is gone before anything is born in that slot.
-    const end = chipSlot(to, g, beforeCount(m.toNode));
+    if (!nodePos.get(m.toNode)) return;
+    const end = freeSlot(m.toNode);
     const a = artifacts.find((x) => x.id === m.id);
     const data: LoomArtifactChipData = {
       label: a?.label ?? m.id,
       active: true,
       color,
-      anim: { kind: "move", points: pointsFor(m.path, end, startSlots.get(m.id)), fadeOut: true, ...win(m) },
+      anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...win(m) },
       stepKey: `${stepKey}-${gi++}`,
     };
-    out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6));
+    out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6, { w: CHIP_W, h: CHIP_H }));
   });
   return out;
 }
 
-function chipNode(id: string, position: { x: number; y: number }, data: LoomArtifactChipData, zIndex: number, tool = false): Node {
+function chipNode(
+  id: string,
+  position: { x: number; y: number },
+  data: LoomArtifactChipData,
+  zIndex: number,
+  size: { w: number; h: number },
+): Node {
   return {
     id,
     type: "loomArtifact",
@@ -211,6 +274,6 @@ function chipNode(id: string, position: { x: number; y: number }, data: LoomArti
     focusable: false,
     zIndex,
     className: "loom-artifact-node",
-    style: { width: tool ? TOOL_W : CHIP_W, height: tool ? TOOL_H : CHIP_H, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
+    style: { width: size.w, height: size.h, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
   };
 }

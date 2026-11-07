@@ -184,6 +184,8 @@ function App() {
     return toArchitectureFlow(arch, loom.highlightedArchNodes, !present);
   }, [loom.doc, loom.highlightedArchNodes, present]);
 
+  // Prototype toggle: compact artifacts (tool icons, +N overflow) vs full.
+  const [compactArtifacts, setCompactArtifacts] = useState(false);
   // v3 artifact chips on the architecture diagram.
   const artifactNodes = useMemo(() => {
     if (!loom.doc?.artifacts?.length || !loom.artifactState) return [];
@@ -198,8 +200,13 @@ function App() {
       loom.position.join(",") || "none",
       loom.doc.architecture.edges,
       loom.artifactState.before,
+      compactArtifacts,
     );
-  }, [loom.doc, loom.artifactState, loom.position, archFlow]);
+  }, [loom.doc, loom.artifactState, loom.position, archFlow, compactArtifacts]);
+  const noteArtifactState = useMemo(
+    () => (loom.artifactState ? { ...loom.artifactState, compact: compactArtifacts } : null),
+    [loom.artifactState, compactArtifacts],
+  );
 
   // Swaps column `index` with its right-hand neighbour — header and every
   // node in both columns move together.
@@ -390,7 +397,7 @@ function App() {
             doc={loom.doc}
             currentTasks={loom.currentTasks}
             highlightedArchNodes={loom.highlightedArchNodes}
-            artifactState={loom.artifactState}
+            artifactState={noteArtifactState}
           />
           <div className="mode-switch" role="group" aria-label="モード">
             {(
@@ -434,7 +441,7 @@ function App() {
               doc={loom.doc}
               currentTasks={loom.currentTasks}
               highlight={loom.highlightedArchNodes}
-              artifactState={loom.artifactState}
+              artifactState={noteArtifactState}
               onMoveNode={handleNoteMove}
               onReset={handleNoteReset}
               onToggleLayout={handleToggleLayout}
@@ -447,6 +454,8 @@ function App() {
                 laneHeaders={archFlow.laneHeaders}
                 tiles={archFlow.tiles}
                 artifactNodes={artifactNodes}
+                compactArtifacts={loom.doc?.artifacts?.length ? compactArtifacts : undefined}
+                onToggleCompactArtifacts={() => setCompactArtifacts((v) => !v)}
                 onSwapLanes={handleSwapLanes}
                 onMoveLane={handleMoveLane}
                 onConnectNodes={handleConnectNodes}

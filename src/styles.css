@@ -898,3 +898,23 @@
   border-color: var(--chip-color);
   color: #fff;
 }
+
+/* Compact: tools as icons, overflow as "+N". */
+.loom-artifact-chip.is-tool-icon {
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+  background: var(--loom-text-secondary);
+  border-color: var(--loom-text-secondary);
+  color: var(--loom-bg);
+}
+.loom-artifact-chip.is-tool-icon.is-active {
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: #fff;
+}
+.loom-artifact-chip.is-more {
+  justify-content: center;
+  font-weight: 600;
+  border-style: dashed;
+}

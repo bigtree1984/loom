@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "architecture": {
+    "layout": "grid",
+    "columns": [
+      { "id": "people", "label": "人" },
+      { "id": "agent", "label": "エージェント" },
+      { "id": "store", "label": "置き場" }
+    ],
+    "nodes": [
+      { "id": "me", "label": "だいき", "type": "human", "col": 0, "row": 0 },
+      { "id": "viewer", "label": "視聴者", "type": "human", "col": 0, "row": 1 },
+      { "id": "claude", "label": "Claude Code", "type": "agent", "col": 1, "row": 0 },
+      { "id": "renderer", "label": "動画レンダラー", "type": "backend", "col": 1, "row": 1 },
+      { "id": "gcs", "label": "GCS", "type": "storage", "icon": "gcp-cloud-storage", "col": 2, "row": 0 },
+      { "id": "youtube", "label": "YouTube", "type": "storage", "col": 2, "row": 1 }
+    ],
+    "edges": [
+      { "from": "me", "to": "claude", "undirected": true },
+      { "from": "claude", "to": "gcs", "undirected": true },
+      { "from": "claude", "to": "renderer", "undirected": true },
+      { "from": "renderer", "to": "gcs", "undirected": true },
+      { "from": "gcs", "to": "youtube", "undirected": true },
+      { "from": "youtube", "to": "viewer", "undirected": true }
+    ]
+  },
+  "artifacts": [
+    { "id": "t_search", "label": "Web検索", "tool": true, "at": "claude" },
+    { "id": "t_files", "label": "ファイル読み書き", "tool": true, "at": "claude" },
+    { "id": "t_shell", "label": "コマンド実行", "tool": true, "at": "claude" },
+    { "id": "t_git", "label": "Git操作", "tool": true, "at": "claude" },
+    { "id": "t_figma", "label": "Figma MCP", "tool": true, "at": "claude" },
+    { "id": "t_ffmpeg", "label": "ffmpeg", "tool": true, "at": "renderer" },
+    { "id": "request", "label": "動画の依頼", "transient": true },
+    { "id": "script", "label": "台本" },
+    { "id": "images", "label": "画像 12枚" },
+    { "id": "audio", "label": "ナレーション音声" },
+    { "id": "captions", "label": "字幕" },
+    { "id": "thumb", "label": "サムネイル" },
+    { "id": "video", "label": "完成動画" },
+    { "id": "published", "label": "公開した動画" }
+  ],
+  "flow": {
+    "tasks": [
+      {
+        "id": "s1", "label": "動画を依頼する", "mainNode": "me", "description": "テーマを伝えるだけ。",
+        "actions": [
+          { "type": "create", "results": ["request"] },
+          { "type": "send", "artifacts": ["request"], "to": "claude" }
+        ]
+      },
+      {
+        "id": "s2", "label": "調べて台本を書く", "mainNode": "claude", "description": "Web検索で調べ、台本をファイルに書く。",
+        "actions": [{ "type": "derive", "artifacts": ["t_search", "t_files"], "results": ["script"] }]
+      },
+      {
+        "id": "s3", "label": "素材を作って置く", "mainNode": "claude", "description": "画像・音声・字幕・サムネイルを作り、GCSに置く。",
+        "actions": [
+          { "type": "derive", "artifacts": ["script", "t_figma", "t_shell"], "results": ["images", "audio", "captions", "thumb"] },
+          { "type": "send", "artifacts": ["images", "audio", "captions", "thumb"], "to": "gcs" }
+        ]
+      },
+      {
+        "id": "s4", "label": "動画に合成する", "mainNode": "renderer", "description": "GCSの素材を読み、1本に合成してGCSに戻す。",
+        "actions": [
+          { "type": "receive", "artifacts": ["images", "audio", "captions"], "from": "gcs", "keep": true },
+          { "type": "derive", "artifacts": ["images", "audio", "captions", "t_ffmpeg"], "results": ["video"] },
+          { "type": "send", "artifacts": ["video"], "to": "gcs" }
+        ]
+      },
+      {
+        "id": "s5", "label": "公開する", "mainNode": "youtube", "description": "動画とサムネイルを受け取って公開する。",
+        "actions": [
+          { "type": "receive", "artifacts": ["video", "thumb"], "from": "gcs", "keep": true },
+          { "type": "derive", "artifacts": ["video", "thumb"], "results": ["published"] }
+        ]
+      },
+      {
+        "id": "s6", "label": "視聴する", "mainNode": "viewer", "description": "",
+        "actions": [{ "type": "receive", "artifacts": ["published"], "from": "youtube", "keep": true }]
+      }
+    ],
+    "connections": [
+      { "from": "s1", "to": "s2" }, { "from": "s2", "to": "s3" }, { "from": "s3", "to": "s4" },
+      { "from": "s4", "to": "s5" }, { "from": "s5", "to": "s6" }
+    ]
+  }
+}

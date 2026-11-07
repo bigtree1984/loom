@@ -61,6 +61,10 @@ export interface LoomArtifactChipData extends Record<string, unknown> {
   anim?: ChipAnim;
   /** Drawn as a tool attached to its node. */
   tool?: boolean;
+  /** Compact tool: icon only (label in the tooltip). */
+  toolIcon?: boolean;
+  /** "+N" chip standing in for collapsed artifacts. */
+  more?: boolean;
   /** Changes every step so the animation restarts. */
   stepKey: string;
 }
@@ -79,18 +83,25 @@ export function LoomArtifactChip({ data }: NodeProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.stepKey, d.anim]);
 
-  const cls = ["loom-artifact-chip", d.tool && "is-tool", d.active && "is-active", d.hidden && "is-hidden"].filter(Boolean).join(" ");
+  const cls = [
+    "loom-artifact-chip",
+    d.tool && "is-tool",
+    d.toolIcon && "is-tool-icon",
+    d.more && "is-more",
+    d.active && "is-active",
+    d.hidden && "is-hidden",
+  ].filter(Boolean).join(" ");
   const style = (d.color ? { "--chip-color": d.color } : {}) as React.CSSProperties;
   return (
     <div ref={ref} className={cls} style={style} title={d.label}>
-      {d.tool ? (
+      {d.more ? null : d.tool || d.toolIcon ? (
         <svg className="loom-artifact-chip-tool" viewBox="0 0 24 24" aria-label="ツール">
           <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" />
         </svg>
       ) : (
         <span className="loom-artifact-chip-mark" aria-hidden />
       )}
-      <span className="loom-artifact-chip-label">{d.label}</span>
+      {!d.toolIcon && <span className="loom-artifact-chip-label">{d.label}</span>}
     </div>
   );
 }

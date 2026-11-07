@@ -1,5 +1,9 @@
 import { activeEdgeFlow, type NodeHighlight } from "../graph/taskFlow";
 import type { ArtifactMotion, ArtifactPlaces } from "../graph/artifactState";
+import { MAX_CHIPS } from "../graph/toArtifactNodes";
+
+/** Same wrench as LoomArtifactChip (24-unit viewBox). */
+const WRENCH_PATH = "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z";
 import type { LoomDocument, Task } from "../types";
 import { PERSON_GLYPH_PATHS } from "../assets/personGlyph";
 import { noteCells, noteColumnCount } from "../graph/noteCells";
@@ -31,7 +35,7 @@ export interface NoteFigureInput {
   /** 1-based step label, e.g. "STEP 3 / 12". */
   stepLabel?: string;
   /** v3: where each artifact is at this step, and what the step touched. */
-  artifactState?: { places: ArtifactPlaces; motions: Map<string, ArtifactMotion> } | null;
+  artifactState?: { places: ArtifactPlaces; motions: Map<string, ArtifactMotion>; compact?: boolean } | null;
 }
 
 export interface NoteFigure {
@@ -234,10 +238,39 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     // Wider than the node (up to the cell pitch) so labels survive.
     const chipW = Math.max(g.nodeW + 24, g.pitchX - 24);
     const chipH = 54;
+    const compact = !!artState.compact;
     const toolsPerNode = new Map<string, number>();
+    const toolCount = new Map<string, number>();
+    doc.artifacts.forEach((a) => {
+      const p = artState.places.get(a.id);
+      if (a.tool && p?.visible && p.node) toolCount.set(p.node, (toolCount.get(p.node) ?? 0) + 1);
+    });
+    // Compact: tools as a row of small wrench icons across the node's
+    // lower half (names are not readable in a still image anyway).
+    if (compact)
+      doc.artifacts.forEach((a) => {
+        if (!a.tool) return;
+        const p = artState.places.get(a.id);
+        if (!p?.visible || !p.node) return;
+        const c = centers.get(p.node);
+        if (!c) return;
+        const k = toolsPerNode.get(p.node) ?? 0;
+        toolsPerNode.set(p.node, k + 1);
+        const n = toolCount.get(p.node) ?? 1;
+        const sz = 46;
+        const gap = 8;
+        const x = c.x - (n * sz + (n - 1) * gap) / 2 + k * (sz + gap);
+        const y = c.y + (layout === "hex" ? g.nodeH * 0.18 : g.nodeH / 2 - sz * 0.6);
+        const on = touched.has(a.id);
+        nodeSvg.push(
+          `<rect x="${r(x)}" y="${r(y)}" width="${sz}" height="${sz}" rx="8" fill="${on ? C.bg : C.textSub}"${on ? ` stroke="${accentRoute.strong}" stroke-width="${STROKE_MIN / 2}"` : ""}/>` +
+            `<g transform="translate(${r(x + 7)} ${r(y + 7)}) scale(${(sz - 14) / 24})" fill="${on ? accentRoute.strong : C.bg}"><path d="${WRENCH_PATH}"/></g>`,
+        );
+        artBottom = Math.max(artBottom, y + sz);
+      });
     // Tools: a solid band across the node's bottom edge (attached to it).
     doc.artifacts.forEach((a) => {
-      if (!a.tool) return;
+      if (compact || !a.tool) return;
       const p = artState.places.get(a.id);
       if (!p?.visible || !p.node) return;
       const c = centers.get(p.node);
@@ -265,17 +298,38 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
       });
       artBottom = Math.max(artBottom, top + th);
     });
+    // Compact: at most MAX_CHIPS chips per node (this step's first), the
+    // rest folded into a "+N" pill.
+    const chipsOn = new Map<string, string[]>();
     doc.artifacts.forEach((a) => {
-      if (a.tool) return;
+      const p = artState.places.get(a.id);
+      if (!a.tool && p?.visible && p.node) chipsOn.set(p.node, [...(chipsOn.get(p.node) ?? []), a.id]);
+    });
+    const folded = new Set<string>();
+    const moreOn = new Map<string, number>();
+    if (compact)
+      chipsOn.forEach((ids, node) => {
+        if (ids.length <= MAX_CHIPS) return;
+        const must = ids.filter((id) => touched.has(id));
+        const room = Math.max(0, MAX_CHIPS - must.length);
+        const keep = new Set([...must, ...ids.filter((id) => !touched.has(id)).slice(0, room)]);
+        ids.filter((id) => !keep.has(id)).forEach((id) => folded.add(id));
+        moreOn.set(node, ids.length - keep.size);
+      });
+    const chipTop = (node: string, c: { x: number; y: number }, idx: number) => {
+      // Below any tool band attached to the same node.
+      const i = idx + (toolsPerNode.get(node) ? (compact ? 0.5 : 0.6) : 0);
+      return c.y + (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2) - 14 + i * (chipH + 6);
+    };
+    doc.artifacts.forEach((a) => {
+      if (a.tool || folded.has(a.id)) return;
       const p = artState.places.get(a.id);
       if (!p?.visible || !p.node) return;
       const c = centers.get(p.node);
       if (!c) return;
       const idx = perNode.get(p.node) ?? 0;
       perNode.set(p.node, idx + 1);
-      // Below any tool band attached to the same node.
-      const i = idx + (toolsPerNode.get(p.node) ? 0.6 : 0);
-      const top = c.y + (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2) - 14 + i * (chipH + 6);
+      const top = chipTop(p.node, c, idx);
       const on = touched.has(a.id);
       const x0 = c.x - chipW / 2;
       nodeSvg.push(
@@ -290,6 +344,24 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
         fill: on ? C.text : C.textSub,
         weight: on ? 700 : 500,
       });
+    });
+
+    moreOn.forEach((count, node) => {
+      const c = centers.get(node);
+      if (!c) return;
+      const top = chipTop(node, c, perNode.get(node) ?? 0);
+      const w = 120;
+      nodeSvg.push(
+        `<rect x="${r(c.x - chipW / 2)}" y="${r(top)}" width="${w}" height="${chipH}" rx="${chipH / 2}" fill="${C.bg}" stroke="${C.border}" stroke-width="${STROKE_MIN / 2}" stroke-dasharray="10 6"/>`,
+      );
+      nodeSvg.lines([`+${count}`], c.x - chipW / 2 + w / 2, top + chipH / 2 + NODE_FONT * 0.36, {
+        size: NODE_FONT,
+        lh: NODE_LH,
+        fill: C.textSub,
+        weight: 700,
+        anchor: "middle",
+      });
+      artBottom = Math.max(artBottom, top + chipH);
     });
   }
 
