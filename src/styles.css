@@ -924,20 +924,12 @@
   position: relative;
 }
 .action-caption {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 5;
-  margin: 0;
-  padding: 6px 10px;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
   list-style: none;
-  max-width: calc(100% - 16px);
-  background: color-mix(in srgb, var(--loom-panel-bg) 92%, transparent);
-  border: 1px solid var(--loom-border);
-  border-radius: 8px;
-  font-size: 12px;
+  border-top: 1px dashed var(--loom-border);
+  font-size: 13px;
   color: var(--loom-text-secondary);
-  pointer-events: none;
 }
 .action-caption li {
   display: flex;

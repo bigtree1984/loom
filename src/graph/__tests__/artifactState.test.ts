@@ -63,3 +63,26 @@ describe("routeAlongEdges", () => {
   it("follows edges ignoring direction", () => expect(routeAlongEdges("a", "d", edges)).toEqual(["a", "b", "c", "d"]));
   it("falls back to a direct hop", () => expect(routeAlongEdges("a", "z", edges)).toEqual(["a", "z"]));
 });
+
+describe("receive of an artifact not born yet", () => {
+  it("appears at the sender and moves to the subject", () => {
+    const d = normalizeLoomDocument({
+      architecture: {
+        nodes: [
+          { id: "run", label: "run", type: "backend", col: 0, row: 0 },
+          { id: "ai", label: "ai", type: "agent", col: 1, row: 0 },
+        ],
+      },
+      artifacts: [{ id: "q", label: "問題" }],
+      flow: {
+        tasks: [{ id: "t", label: "t", description: "", mainNode: "run", inputNodes: [], outputNodes: [],
+          actions: [{ type: "receive", artifacts: ["q"], from: "ai" }] }],
+        connections: [],
+      },
+    });
+    const { places, motions } = artifactStateAt(d, [["t"]]);
+    expect(places.get("q")).toEqual({ node: "run", visible: true });
+    expect(motions.get("q")?.path).toEqual(["ai", "run"]);
+    expect(motions.get("q")?.born).toBe(true);
+  });
+});

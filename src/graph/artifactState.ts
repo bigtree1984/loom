@@ -114,8 +114,13 @@ export function applyTask(
             note(id, { ended: true, toNode: undefined });
             return;
           }
-          const prevPath = motions?.get(id)?.path ?? [place(id).node].filter((n): n is string => !!n);
-          note(id, { toNode: target, path: [...prevPath, target] });
+          // Receiving something not born yet: the other node produced it
+          // (e.g. Gemini returns a question) — it appears there, then moves.
+          const unborn = !place(id).node && a.type === "receive" && !!a.from;
+          const prevPath = unborn
+            ? [a.from as string]
+            : (motions?.get(id)?.path ?? [place(id).node].filter((n): n is string => !!n));
+          note(id, { toNode: target, path: [...prevPath, target], ...(unborn ? { born: true } : {}) });
           set(id, { node: target, visible: true });
         });
         break;

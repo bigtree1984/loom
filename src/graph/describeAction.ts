@@ -7,7 +7,9 @@ export function describeAction(a: TaskAction, doc: LoomDocument): string {
   if (a.label) return a.label;
   const art = new Map((doc.artifacts ?? []).map((x) => [x.id, x.label]));
   const isTool = new Set((doc.artifacts ?? []).filter((x) => x.tool).map((x) => x.id));
-  const node = new Map(doc.architecture.nodes.map((n) => [n.id, n.label]));
+  // Multi-line node labels ("BigQuery\n回答と成績の記録"): the first line
+  // names it well enough in a one-line caption.
+  const node = new Map(doc.architecture.nodes.map((n) => [n.id, n.label.split("\n")[0]]));
   const list = (ids?: string[]) => (ids ?? []).map((id) => art.get(id) ?? id).join("・");
   // Tools read as "〜を使って", not as material.
   const tools = list(a.artifacts?.filter((id) => isTool.has(id)));

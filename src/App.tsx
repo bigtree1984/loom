@@ -457,11 +457,6 @@ function App() {
                 laneHeaders={archFlow.laneHeaders}
                 tiles={archFlow.tiles}
                 artifactNodes={artifactNodes}
-                overlay={
-                  loom.doc && loom.currentTasks.some((t) => t.actions?.length) ? (
-                    <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} />
-                  ) : null
-                }
                 onSwapLanes={handleSwapLanes}
                 onMoveLane={handleMoveLane}
                 onConnectNodes={handleConnectNodes}
@@ -481,7 +476,11 @@ function App() {
               />
             </ReactFlowProvider>
           )}
-          <TaskDetailPanel hasDoc={!!loom.doc} isEmptyDoc={!!loom.doc && loom.doc.flow.tasks.length === 0} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask} />
+          <TaskDetailPanel hasDoc={!!loom.doc} isEmptyDoc={!!loom.doc && loom.doc.flow.tasks.length === 0} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask}>
+            {loom.doc && loom.currentTasks.some((t) => t.actions?.length) ? (
+              <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} />
+            ) : null}
+          </TaskDetailPanel>
         </div>
       </div>
 

@@ -8,9 +8,11 @@ interface Props {
   isEmptyDoc?: boolean;
   tasks: Task[];
   routeColorByTask: Map<string, number>;
+  /** Shown under the descriptions (v3: the step's action list). */
+  children?: React.ReactNode;
 }
 
-export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true, isEmptyDoc = false }: Props) {
+export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true, isEmptyDoc = false, children }: Props) {
   if (tasks.length === 0) {
     return (
       <div className="task-detail empty">
@@ -41,6 +43,7 @@ export function TaskDetailPanel({ tasks, routeColorByTask, hasDoc = true, isEmpt
           </div>
         );
       })}
+      {children}
     </div>
   );
 }
