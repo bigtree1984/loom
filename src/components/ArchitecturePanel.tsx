@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Background, Controls, ReactFlow, useNodesState, useReactFlow, type Edge, type FinalConnectionState, type Node, type NodeChange } from "@xyflow/react";
 import { LoomArchEdge, type LoomEdgeData } from "./LoomArchEdge";
 import { LoomArchNode } from "./LoomArchNode";
+import { LoomArtifactChip } from "./LoomArtifactChip";
 import { LoomLaneHeader, type LoomLaneHeaderData } from "./LoomLaneHeader";
 import type { LaneHeader, LaneTile } from "../graph/toArchitectureFlow";
 import { LoomLaneTile, type LoomLaneTileData } from "./LoomLaneTile";
@@ -10,7 +11,7 @@ import type { ArchLayout } from "../types";
 import type { EdgeDirection } from "../graph/gridEdits";
 
 const edgeTypes = { loomEdge: LoomArchEdge };
-const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader, loomLaneTile: LoomLaneTile };
+const nodeTypes = { loomArchNode: LoomArchNode, loomLaneHeader: LoomLaneHeader, loomLaneTile: LoomLaneTile, loomArtifact: LoomArtifactChip };
 
 
 /** Re-fits the viewport after a grid <-> hex toggle (positions change, so
@@ -41,6 +42,8 @@ interface Props {
   edges: Edge[];
   laneHeaders: LaneHeader[];
   tiles: LaneTile[];
+  /** v3 artifact chips (decorative React Flow nodes), drawn above nodes. */
+  artifactNodes?: Node[];
   onSwapLanes: (index: number) => void;
   /** Drag-and-drop lane reorder: column `from` ends up at index `to`. */
   onMoveLane: (from: number, to: number) => void;
@@ -68,6 +71,7 @@ export function ArchitecturePanel({
   edges,
   laneHeaders,
   tiles,
+  artifactNodes = [],
   onSwapLanes,
   onMoveLane,
   onNodeDragEnd,
@@ -355,7 +359,7 @@ export function ArchitecturePanel({
       </div>
       <div className="rf-container">
         <ReactFlow
-          nodes={[...tileNodes, ...headerNodes, ...pickNodes, ...dropMarker]}
+          nodes={[...tileNodes, ...headerNodes, ...pickNodes, ...artifactNodes, ...dropMarker]}
           edges={shownEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}

@@ -1,4 +1,5 @@
 import { activeEdgeFlow, type NodeHighlight } from "../graph/taskFlow";
+import type { ArtifactMotion, ArtifactPlaces } from "../graph/artifactState";
 import type { LoomDocument, Task } from "../types";
 import { PERSON_GLYPH_PATHS } from "../assets/personGlyph";
 import { noteCells, noteColumnCount } from "../graph/noteCells";
@@ -29,6 +30,8 @@ export interface NoteFigureInput {
   stepTasks?: Task[];
   /** 1-based step label, e.g. "STEP 3 / 12". */
   stepLabel?: string;
+  /** v3: where each artifact is at this step, and what the step touched. */
+  artifactState?: { places: ArtifactPlaces; motions: Map<string, ArtifactMotion> } | null;
 }
 
 export interface NoteFigure {
@@ -219,6 +222,47 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   });
   y = diagramTop + noteDiagramHeight(g, rows);
 
+  // ---- v3 artifacts: pills hanging off the bottom of their node ---------
+  // A still image of the step's end state (DESIGN_v3 §3.5): everything born
+  // so far on the node it's on now; this step's ones in the route colour.
+  const artState = input.artifactState;
+  let artBottom = 0;
+  if (artState && doc.artifacts?.length) {
+    const touched = new Set([...artState.motions.values()].filter((m) => !m.ghost).map((m) => m.id));
+    const accentRoute = noteRouteColor(0);
+    const perNode = new Map<string, number>();
+    // Wider than the node (up to the cell pitch) so labels survive.
+    const chipW = Math.max(g.nodeW + 24, g.pitchX - 24);
+    const chipH = 54;
+    doc.artifacts.forEach((a) => {
+      const p = artState.places.get(a.id);
+      if (!p?.visible || !p.node) return;
+      const c = centers.get(p.node);
+      if (!c) return;
+      const i = perNode.get(p.node) ?? 0;
+      perNode.set(p.node, i + 1);
+      const top = c.y + (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2) - 14 + i * (chipH + 6);
+      const on = touched.has(a.id);
+      const x0 = c.x - chipW / 2;
+      nodeSvg.push(
+        `<rect x="${r(x0)}" y="${r(top)}" width="${r(chipW)}" height="${chipH}" rx="${chipH / 2}" fill="${on ? accentRoute.light : C.bg}" stroke="${on ? accentRoute.strong : C.border}" stroke-width="${STROKE_MIN / 2}"/>` +
+          `<rect x="${r(x0 + 22)}" y="${r(top + chipH / 2 - 7)}" width="14" height="14" transform="rotate(45 ${r(x0 + 29)} ${r(top + chipH / 2)})" fill="${on ? accentRoute.strong : C.textSub}"/>`,
+      );
+      artBottom = Math.max(artBottom, top + chipH);
+      const [line] = wrapText(a.label, { maxEm: (chipW - 70) / NODE_FONT, maxLines: 1 });
+      nodeSvg.lines([line], x0 + 48, top + chipH / 2 + NODE_FONT * 0.36, {
+        size: NODE_FONT,
+        lh: NODE_LH,
+        fill: on ? C.text : C.textSub,
+        weight: on ? 700 : 500,
+      });
+    });
+  }
+
+  // Chips under the bottom row may hang past the grid: grow the canvas.
+  if (artBottom + 24 > y) y = artBottom + 24;
+  const diagramHeight = y - diagramTop;
+
   // ---- Edges (drawn under nodes) ----------------------------------------
   const hw = g.nodeW / 2 + 4;
   const hh = (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2) + 4;
@@ -321,6 +365,6 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     height,
     warnings,
     text: svg.text,
-    diagram: { top: diagramTop, height: noteDiagramHeight(g, rows), geometry: g },
+    diagram: { top: diagramTop, height: diagramHeight, geometry: g },
   };
 }

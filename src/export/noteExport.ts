@@ -1,3 +1,4 @@
+import { artifactStateAt } from "../graph/artifactState";
 import { addIoHighlights } from "../graph/taskFlow";
 import type { LoomDocument, Task } from "../types";
 import { figureToPng } from "./rasterize";
@@ -41,9 +42,14 @@ export async function exportOverview(doc: LoomDocument): Promise<ExportResult> {
  * on-screen canvas and the exported PNG come from the same SVG string.
  * No current task -> overview figure.
  */
-export function currentFigureInput(doc: LoomDocument, currentTasks: Task[], highlight: NoteHighlight): NoteFigureInput {
+export function currentFigureInput(
+  doc: LoomDocument,
+  currentTasks: Task[],
+  highlight: NoteHighlight,
+  artifactState?: NoteFigureInput["artifactState"],
+): NoteFigureInput {
   const ordered = stepOrder(doc.flow);
-  if (currentTasks.length === 0) return { doc, orderedTasks: ordered };
+  if (currentTasks.length === 0) return { doc, orderedTasks: ordered, artifactState };
   const idx = ordered.findIndex((t) => t.id === currentTasks[0]?.id);
   return {
     doc,
@@ -51,6 +57,7 @@ export function currentFigureInput(doc: LoomDocument, currentTasks: Task[], high
     highlight,
     stepTasks: currentTasks,
     stepLabel: idx >= 0 ? `STEP ${idx + 1} / ${ordered.length}` : undefined,
+    artifactState,
   };
 }
 
@@ -58,10 +65,11 @@ export async function exportCurrentStep(
   doc: LoomDocument,
   currentTasks: Task[],
   highlight: NoteHighlight,
+  artifactState?: NoteFigureInput["artifactState"],
 ): Promise<ExportResult> {
   const ordered = stepOrder(doc.flow);
   const idx = ordered.findIndex((t) => t.id === currentTasks[0]?.id);
-  const fig = renderNoteFigure(currentFigureInput(doc, currentTasks, highlight));
+  const fig = renderNoteFigure(currentFigureInput(doc, currentTasks, highlight, artifactState));
   const png = await figureToPng(fig);
   const warnings = [...fig.warnings];
   if (!png.fontEmbedded) warnings.push(FONT_WARNING);
@@ -82,6 +90,8 @@ export async function exportAllSteps(doc: LoomDocument): Promise<ExportResult> {
       highlight: highlightForTask(t),
       stepTasks: [t],
       stepLabel: `STEP ${i + 1} / ${ordered.length}`,
+      // Artifacts as if the list were played in order up to this step.
+      artifactState: doc.artifacts?.length ? artifactStateAt(doc, ordered.slice(0, i + 1).map((x) => [x.id])) : null,
     });
     const png = await figureToPng(fig);
     collect(warnings, fig.warnings);

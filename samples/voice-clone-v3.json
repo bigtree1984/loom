@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "architecture": {
+    "layout": "hex",
+    "columns": [
+      { "id": "hand", "label": "手元（Mac）" },
+      { "id": "local", "label": "手元（BigtreePC）" },
+      { "id": "rented", "label": "借りた場所" }
+    ],
+    "nodes": [
+      { "id": "me", "label": "だいき", "type": "human", "col": 0, "row": 0 },
+      { "id": "recorder", "label": "録音アプリ", "type": "frontend", "col": 0, "row": 1 },
+      { "id": "claude", "label": "Claude Code", "type": "agent", "col": 0, "row": 2 },
+      { "id": "gpu", "label": "RTX 3050 6GB", "type": "backend", "col": 1, "row": 2 },
+      { "id": "colab", "label": "Google Colab", "type": "backend", "col": 2, "row": 1 },
+      { "id": "a100", "label": "A100 40GB", "type": "backend", "col": 2, "row": 2 }
+    ],
+    "edges": [
+      { "from": "me", "to": "recorder", "undirected": true },
+      { "from": "recorder", "to": "colab", "undirected": true },
+      { "from": "colab", "to": "a100", "undirected": true },
+      { "from": "a100", "to": "gpu", "undirected": true },
+      { "from": "claude", "to": "gpu", "undirected": true },
+      { "from": "claude", "to": "recorder", "undirected": true }
+    ]
+  },
+  "artifacts": [
+    { "id": "script", "label": "読み上げ文 1,013本", "at": "me" },
+    { "id": "wavs", "label": "音声 1,013本" },
+    { "id": "spec", "label": "VRAM 6GB", "at": "gpu" },
+    { "id": "plan", "label": "学習は借りる" },
+    { "id": "model", "label": "モデル 4.3GB" },
+    { "id": "text", "label": "台本テキスト", "at": "claude" },
+    { "id": "voice", "label": "合成した音声" },
+    { "id": "video", "label": "紹介動画" }
+  ],
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1", "label": "1,013本を読み上げる", "mainNode": "me",
+        "description": "日本語420文と英語593文。合計60分。ここだけは自分でやる。",
+        "actions": [
+          { "type": "derive", "artifacts": ["script"], "results": ["wavs"] },
+          { "type": "send", "artifacts": ["wavs"], "to": "recorder" }
+        ]
+      },
+      {
+        "id": "t2", "label": "学習は6GBに入らない", "mainNode": "claude",
+        "description": "推論は4.52GBで収まるが、学習は16GB以上が目安。いちばん小さいモデルでも入らない。",
+        "actions": [
+          { "type": "receive", "artifacts": ["spec"], "from": "gpu", "keep": true },
+          { "type": "derive", "artifacts": ["spec"], "results": ["plan"] }
+        ]
+      },
+      {
+        "id": "t3", "label": "計算だけ借りる", "mainNode": "colab",
+        "description": "Google Colab の A100 を借りる。買い切りのチケットから20〜30単位。",
+        "actions": [
+          { "type": "receive", "artifacts": ["wavs"], "from": "recorder" },
+          { "type": "send", "artifacts": ["wavs"], "to": "a100" }
+        ]
+      },
+      {
+        "id": "t4", "label": "学習する（20分）", "mainNode": "a100",
+        "description": "1回目は話者の特徴が学習されず、全然似なかった。2回目は256本ぶんを平均してから書き込んだ。",
+        "actions": [{ "type": "derive", "artifacts": ["wavs"], "results": ["model"] }]
+      },
+      {
+        "id": "t5", "label": "モデルだけ降ろす", "mainNode": "gpu",
+        "description": "4.3GBのファイル1つ。ここから先、借りる必要はもう無い。",
+        "actions": [{ "type": "receive", "artifacts": ["model"], "from": "a100" }]
+      },
+      {
+        "id": "t6", "label": "手元で喋らせる", "mainNode": "gpu",
+        "description": "テキストと言語を渡すだけ。参照音声は要らない。読み込み5.2秒、VRAM 4.18GB。",
+        "actions": [
+          { "type": "receive", "artifacts": ["text"], "from": "claude", "keep": true },
+          { "type": "derive", "artifacts": ["model", "text"], "results": ["voice"] }
+        ]
+      },
+      {
+        "id": "t7", "label": "動画に載せる", "mainNode": "claude",
+        "description": "台本を直したら、コマンドを打ち直すだけ。撮り直しが一瞬で終わる。",
+        "actions": [
+          { "type": "receive", "artifacts": ["voice"], "from": "gpu" },
+          { "type": "derive", "artifacts": ["voice"], "results": ["video"] }
+        ]
+      }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2" }, { "from": "t2", "to": "t3" }, { "from": "t3", "to": "t4" },
+      { "from": "t4", "to": "t5" }, { "from": "t5", "to": "t6" }, { "from": "t6", "to": "t7" }
+    ]
+  }
+}

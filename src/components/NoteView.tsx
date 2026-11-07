@@ -2,13 +2,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { noteCells } from "../graph/noteCells";
 import { currentFigureInput } from "../export/noteExport";
 import { noteCellAt, noteCellCenter } from "../export/noteLayout";
-import { renderNoteFigure, type NoteHighlight } from "../export/renderNoteSvg";
+import { renderNoteFigure, type NoteFigureInput, type NoteHighlight } from "../export/renderNoteSvg";
 import type { LoomDocument, Task } from "../types";
 
 interface Props {
   doc: LoomDocument;
   currentTasks: Task[];
   highlight: NoteHighlight;
+  artifactState?: NoteFigureInput["artifactState"];
   onMoveNode: (nodeId: string, col: number, row: number) => void;
   onReset: () => void;
   onToggleLayout: () => void;
@@ -26,8 +27,11 @@ type Drag = { id: string; x: number; y: number; dx: number; dy: number };
  * to the panel width, with a transparent overlay for dragging nodes
  * between note cells. Nothing is laid out twice, so view == export.
  */
-export function NoteView({ doc, currentTasks, highlight, onMoveNode, onReset, onToggleLayout }: Props) {
-  const fig = useMemo(() => renderNoteFigure(currentFigureInput(doc, currentTasks, highlight)), [doc, currentTasks, highlight]);
+export function NoteView({ doc, currentTasks, highlight, artifactState, onMoveNode, onReset, onToggleLayout }: Props) {
+  const fig = useMemo(
+    () => renderNoteFigure(currentFigureInput(doc, currentTasks, highlight, artifactState)),
+    [doc, currentTasks, highlight, artifactState],
+  );
   const cells = useMemo(() => noteCells(doc.architecture), [doc.architecture]);
   const pageRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);

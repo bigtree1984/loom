@@ -1,3 +1,4 @@
+import type { NoteFigureInput } from "./renderNoteSvg";
 import { useState } from "react";
 import type { LoomDocument, Task } from "../types";
 import { downloadFile, exportAllSteps, exportCurrentStep, exportOverview, type ExportResult } from "./noteExport";
@@ -7,10 +8,11 @@ interface Props {
   doc: LoomDocument | null;
   currentTasks: Task[];
   highlightedArchNodes: NoteHighlight;
+  artifactState?: NoteFigureInput["artifactState"];
 }
 
 /** Header menu 「note用に書き出す」 (DESIGN_v2 §6). Self-contained so App.tsx needs one line. */
-export function NoteExportMenu({ doc, currentTasks, highlightedArchNodes }: Props) {
+export function NoteExportMenu({ doc, currentTasks, highlightedArchNodes, artifactState }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -33,7 +35,7 @@ export function NoteExportMenu({ doc, currentTasks, highlightedArchNodes }: Prop
     e.target.value = "";
     if (!doc) return;
     if (v === "overview") run(() => exportOverview(doc));
-    if (v === "step") run(() => exportCurrentStep(doc, currentTasks, highlightedArchNodes));
+    if (v === "step") run(() => exportCurrentStep(doc, currentTasks, highlightedArchNodes, artifactState));
     if (v === "all") run(() => exportAllSteps(doc));
   };
 

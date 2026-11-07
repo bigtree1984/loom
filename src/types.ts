@@ -59,10 +59,46 @@ export interface ArchColumn {
   label: string;
 }
 
+/**
+ * v3 (DESIGN_v3_artifacts.md): something that moves between nodes or is
+ * produced / changed by them. Only fixed facts live here — where it is
+ * right now and whether it's been used up are computed from the actions
+ * along the played path (src/graph/artifactState.ts), never stored.
+ */
+export interface Artifact {
+  id: string;
+  label: string;
+  /** Node it sits on from the start. Unset = born in some task's action. */
+  at?: string;
+  /** Signals / triggers / requests: vanish once received. */
+  transient?: boolean;
+}
+
+export type ActionType = "create" | "send" | "receive" | "transform" | "derive" | "inspect" | "discard";
+
+/** One change to artifacts, done by the task's mainNode (the subject). */
+export interface TaskAction {
+  type: ActionType;
+  /** What the action takes / moves / looks at. */
+  artifacts?: string[];
+  /** What it produces (create / transform / derive). */
+  results?: string[];
+  /** receive: the node it comes from. */
+  from?: string;
+  /** send: the node it goes to. */
+  to?: string;
+  /** send / receive: the original stays where it is; a copy flies and
+   * vanishes on arrival (hand over a copy / read from a source). */
+  keep?: boolean;
+}
+
 export interface Task {
   id: string;
   label: string;
   description: string;
+  /** v3: the artifact changes this task makes, in order. When present,
+   * inputNodes / outputNodes are derived from it (receive.from / send.to). */
+  actions?: TaskAction[];
   /** architecture node id this task executes on */
   mainNode: string;
   /** architecture node ids providing input */
@@ -110,6 +146,8 @@ export interface LoomTheme {
 export interface LoomDocument {
   version?: 2;
   theme?: LoomTheme;
+  /** v3: optional; a document without it is a plain v2 diagram. */
+  artifacts?: Artifact[];
   architecture: {
     layout?: ArchLayout;
     columns: ArchColumn[];
@@ -135,4 +173,5 @@ export interface LoomDocumentInput {
     edges?: Array<Partial<ArchEdge> & { a?: string; b?: string }>;
   };
   flow?: Partial<LoomDocument["flow"]>;
+  artifacts?: Artifact[];
 }

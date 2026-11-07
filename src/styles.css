@@ -831,3 +831,69 @@
   font-size: 12px;
   margin: 8px;
 }
+
+/* ---- v3 artifact chips ---------------------------------------------- */
+/* Movement between nodes = the React Flow node's transform, eased. */
+.react-flow__node.loom-artifact-node {
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.loom-artifact-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+  padding: 0 7px;
+  border-radius: 10px;
+  border: 1px solid var(--loom-border);
+  background: var(--loom-bg);
+  color: var(--loom-text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: opacity 0.5s, background 0.3s, color 0.3s, border-color 0.3s;
+}
+.loom-artifact-chip-mark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: var(--loom-text-secondary);
+}
+.loom-artifact-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loom-artifact-chip.is-active {
+  border-color: var(--chip-color);
+  color: var(--loom-text-primary);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--chip-color) 14%, var(--loom-bg));
+}
+.loom-artifact-chip.is-active .loom-artifact-chip-mark {
+  background: var(--chip-color);
+}
+.loom-artifact-chip.is-hidden {
+  opacity: 0;
+}
+.loom-artifact-chip.is-born {
+  animation: loom-chip-born 0.6s ease-out both;
+}
+.loom-artifact-chip.is-ghost {
+  animation: loom-chip-fly 1.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes loom-chip-born {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes loom-chip-fly {
+  0% { opacity: 0.9; transform: translate(var(--dx), var(--dy)); }
+  55% { opacity: 1; transform: translate(0, 0); }
+  100% { opacity: 0; transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node.loom-artifact-node { transition: none; }
+  .loom-artifact-chip.is-born, .loom-artifact-chip.is-ghost { animation: none; }
+}

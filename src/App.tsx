@@ -7,6 +7,8 @@ import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
+import { toArtifactNodes } from "./graph/toArtifactNodes";
+import { routeColorFor } from "./graph/routeColors";
 import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt, swapColumns, type EdgeDirection } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
@@ -181,6 +183,21 @@ function App() {
     const arch = present ? compactForPresent(loom.doc.architecture) : loom.doc.architecture;
     return toArchitectureFlow(arch, loom.highlightedArchNodes, !present);
   }, [loom.doc, loom.highlightedArchNodes, present]);
+
+  // v3 artifact chips on the architecture diagram.
+  const artifactNodes = useMemo(() => {
+    if (!loom.doc?.artifacts?.length || !loom.artifactState) return [];
+    const pos = new Map(archFlow.nodes.map((n) => [n.id, n.position]));
+    return toArtifactNodes(
+      loom.doc.artifacts,
+      loom.artifactState.places,
+      loom.artifactState.motions,
+      pos,
+      archFlow.geometry,
+      routeColorFor(0).edge,
+      loom.position.join(",") || "none",
+    );
+  }, [loom.doc, loom.artifactState, loom.position, archFlow]);
 
   // Swaps column `index` with its right-hand neighbour — header and every
   // node in both columns move together.
@@ -367,7 +384,12 @@ function App() {
               </a>
             </div>
           </div>
-          <NoteExportMenu doc={loom.doc} currentTasks={loom.currentTasks} highlightedArchNodes={loom.highlightedArchNodes} />
+          <NoteExportMenu
+            doc={loom.doc}
+            currentTasks={loom.currentTasks}
+            highlightedArchNodes={loom.highlightedArchNodes}
+            artifactState={loom.artifactState}
+          />
           <div className="mode-switch" role="group" aria-label="モード">
             {(
               [
@@ -410,6 +432,7 @@ function App() {
               doc={loom.doc}
               currentTasks={loom.currentTasks}
               highlight={loom.highlightedArchNodes}
+              artifactState={loom.artifactState}
               onMoveNode={handleNoteMove}
               onReset={handleNoteReset}
               onToggleLayout={handleToggleLayout}
@@ -421,6 +444,7 @@ function App() {
                 edges={archFlow.edges}
                 laneHeaders={archFlow.laneHeaders}
                 tiles={archFlow.tiles}
+                artifactNodes={artifactNodes}
                 onSwapLanes={handleSwapLanes}
                 onMoveLane={handleMoveLane}
                 onConnectNodes={handleConnectNodes}

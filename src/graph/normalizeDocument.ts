@@ -1,4 +1,4 @@
-import type { ArchColumn, ArchEdge, ArchNode, LoomDocument, LoomDocumentInput, Task } from "../types";
+import type { ActionType, ArchColumn, ArchEdge, ArchNode, Artifact, LoomDocument, LoomDocumentInput, Task, TaskAction } from "../types";
 import { computeStableOrder, HUMAN_LANE, layoutByLanes } from "./layout";
 import { sanitizeTheme } from "./theme";
 
@@ -25,11 +25,7 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
   const arch = input.architecture ?? {};
   const flowIn = input.flow ?? {};
 
-  const tasks = asArray<Task>(flowIn.tasks).map((t) => ({
-    ...t,
-    inputNodes: asArray<string>(t.inputNodes),
-    outputNodes: asArray<string>(t.outputNodes),
-  }));
+  const tasks = asArray<Task>(flowIn.tasks).map(normalizeTask);
   const connections = asArray<LoomDocument["flow"]["connections"][number]>(flowIn.connections);
 
   const nodesIn = asArray<ArchNode>(arch.nodes).filter((n) => n.type !== "spacer");
@@ -61,9 +57,13 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
   nodes = resolveCollisions(nodes).map(sanitizeNoteCell);
 
   const theme = sanitizeTheme(input.theme);
+  const artifacts = asArray<Artifact>(input.artifacts)
+    .filter((a) => a && typeof a.id === "string")
+    .map((a) => ({ ...a, label: a.label ?? a.id }));
   return {
     version: 2,
     ...(theme ? { theme } : {}),
+    ...(artifacts.length ? { artifacts } : {}),
     architecture: {
       layout: arch.layout === "hex" ? "hex" : "grid",
       columns,
@@ -188,6 +188,31 @@ function sanitizeNoteCell(n: ArchNode): ArchNode {
 function stripHints(n: ArchNode): ArchNode {
   const { group: _g, rowOrder: _r, ...rest } = n;
   return rest;
+}
+
+const ACTION_TYPES = new Set<ActionType>(["create", "send", "receive", "transform", "derive", "inspect", "discard"]);
+
+/** v3 tasks carry `actions`; their io nodes (for the v2 highlight and the
+ * live-edge flow) are derived from them so both stay in step. */
+function normalizeTask(t: Task): Task {
+  const actions = asArray<TaskAction>(t.actions)
+    .filter((a) => a && ACTION_TYPES.has(a.type))
+    .map((a) => ({
+      ...a,
+      ...(a.artifacts !== undefined ? { artifacts: asArray<string>(a.artifacts) } : {}),
+      ...(a.results !== undefined ? { results: asArray<string>(a.results) } : {}),
+    }));
+  if (actions.length === 0) {
+    const { actions: _a, ...rest } = t;
+    return { ...rest, inputNodes: asArray<string>(t.inputNodes), outputNodes: asArray<string>(t.outputNodes) };
+  }
+  const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x && x !== t.mainNode))];
+  return {
+    ...t,
+    actions,
+    inputNodes: uniq(actions.filter((a) => a.type === "receive").map((a) => a.from)),
+    outputNodes: uniq(actions.filter((a) => a.type === "send").map((a) => a.to)),
+  };
 }
 
 function asArray<T>(v: unknown): T[] {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types";
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
+import { artifactStateAt } from "../graph/artifactState";
 
 export type { NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
 import { addIoHighlights, type NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
@@ -420,6 +421,13 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     return map;
   }, [currentTasks, routeColorByTask]);
 
+  // v3 artifacts: where each one is after the played path, and what the
+  // current step did to them (DESIGN_v3 §3.4, §3.6).
+  const artifactState = useMemo(
+    () => (doc?.artifacts?.length ? artifactStateAt(doc, [...history.map((h) => h.position), position]) : null),
+    [doc, history, position],
+  );
+
   const isHumanGate = useMemo(
     () => currentTasks.some((t) => archNodesById.get(t.mainNode)?.type === "human"),
     [currentTasks, archNodesById],
@@ -448,6 +456,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     isComplete,
     isHumanGate,
     highlightedArchNodes,
+    artifactState,
     routeColorByTask,
     archNodesById,
   };
