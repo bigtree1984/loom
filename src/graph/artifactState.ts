@@ -27,6 +27,9 @@ export interface ArtifactMotion {
   ended?: boolean;
   /** Touched without moving (inspect / derive source / send-keep original). */
   touched?: boolean;
+  /** Nodes it passed through this step, start first (hops between them may
+   * still need routing along architecture edges — see toArtifactNodes). */
+  path?: string[];
 }
 
 export type ArtifactPlaces = Map<string, ArtifactPlace>;
@@ -60,7 +63,7 @@ export function applyTask(
     switch (a.type) {
       case "create":
         outs.forEach((id) => {
-          note(id, { born: true, toNode: subject });
+          note(id, { born: true, toNode: subject, path: [subject] });
           set(id, { node: subject, visible: true });
         });
         break;
@@ -87,7 +90,8 @@ export function applyTask(
             note(id, { ended: true, toNode: undefined });
             return;
           }
-          note(id, { toNode: target });
+          const prevPath = motions?.get(id)?.path ?? [place(id).node].filter((n): n is string => !!n);
+          note(id, { toNode: target, path: [...prevPath, target] });
           set(id, { node: target, visible: true });
         });
         break;
@@ -101,7 +105,7 @@ export function applyTask(
           } else note(id, { touched: true });
         });
         outs.forEach((id) => {
-          note(id, { born: true, toNode: subject });
+          note(id, { born: true, toNode: subject, path: [subject] });
           set(id, { node: subject, visible: true });
         });
         break;
@@ -119,7 +123,13 @@ export function applyTask(
 
   function ghostOf(id: string, from: string | undefined, to: string) {
     if (!motions) return;
-    motions.set(`${id}#ghost:${from}->${to}`, { id, fromNode: from, toNode: to, ghost: true });
+    motions.set(`${id}#ghost:${from}->${to}`, {
+      id,
+      fromNode: from,
+      toNode: to,
+      ghost: true,
+      path: [from, to].filter((n): n is string => !!n),
+    });
   }
 }
 

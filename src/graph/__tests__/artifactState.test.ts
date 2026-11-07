@@ -56,3 +56,10 @@ describe("artifactStateAt", () => {
     expect(places.get("y")?.visible).toBe(false);
   });
 });
+
+import { routeAlongEdges } from "../toArtifactNodes";
+describe("routeAlongEdges", () => {
+  const edges = [{ from: "a", to: "b" }, { from: "c", to: "b" }, { from: "c", to: "d" }];
+  it("follows edges ignoring direction", () => expect(routeAlongEdges("a", "d", edges)).toEqual(["a", "b", "c", "d"]));
+  it("falls back to a direct hop", () => expect(routeAlongEdges("a", "z", edges)).toEqual(["a", "z"]));
+});

@@ -196,6 +196,7 @@ function App() {
       archFlow.geometry,
       routeColorFor(0).edge,
       loom.position.join(",") || "none",
+      loom.doc.architecture.edges,
     );
   }, [loom.doc, loom.artifactState, loom.position, archFlow]);
 

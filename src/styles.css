@@ -833,10 +833,8 @@
 }
 
 /* ---- v3 artifact chips ---------------------------------------------- */
-/* Movement between nodes = the React Flow node's transform, eased. */
-.react-flow__node.loom-artifact-node {
-  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* The current step's changes loop via the Web Animations API
+   (LoomArtifactChip); the chip itself just sits on its final slot. */
 .loom-artifact-chip {
   display: flex;
   align-items: center;
@@ -851,7 +849,7 @@
   font-size: 10px;
   line-height: 1;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-  transition: opacity 0.5s, background 0.3s, color 0.3s, border-color 0.3s;
+  transition: opacity 0.4s, background 0.3s, color 0.3s, border-color 0.3s;
 }
 .loom-artifact-chip-mark {
   flex: 0 0 auto;
@@ -877,23 +875,4 @@
 }
 .loom-artifact-chip.is-hidden {
   opacity: 0;
-}
-.loom-artifact-chip.is-born {
-  animation: loom-chip-born 0.6s ease-out both;
-}
-.loom-artifact-chip.is-ghost {
-  animation: loom-chip-fly 1.4s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-@keyframes loom-chip-born {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-@keyframes loom-chip-fly {
-  0% { opacity: 0.9; transform: translate(var(--dx), var(--dy)); }
-  55% { opacity: 1; transform: translate(0, 0); }
-  100% { opacity: 0; transform: translate(0, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .react-flow__node.loom-artifact-node { transition: none; }
-  .loom-artifact-chip.is-born, .loom-artifact-chip.is-ghost { animation: none; }
 }
