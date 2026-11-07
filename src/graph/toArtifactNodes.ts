@@ -121,13 +121,16 @@ export function toArtifactNodes(
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
   const out: Node[] = [];
   // The step's actions play one after another in a shared loop.
+  // Each action gets ACTION_MS, then a short pause, so the next action only
+  // starts once the previous one has visibly finished.
   const ACTION_MS = 1300;
+  const GAP_MS = 400;
   const HOLD_MS = 1000;
   const actions = Math.max(1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1));
-  const duration = actions * ACTION_MS + HOLD_MS;
+  const duration = actions * (ACTION_MS + GAP_MS) + HOLD_MS;
   const win = (m: ArtifactMotion) => ({
-    from: ((m.start ?? 0) * ACTION_MS) / duration,
-    to: (((m.end ?? 0) + 1) * ACTION_MS) / duration,
+    from: ((m.start ?? 0) * (ACTION_MS + GAP_MS)) / duration,
+    to: ((m.end ?? 0) * (ACTION_MS + GAP_MS) + ACTION_MS) / duration,
     duration,
   });
   // Waypoints as offsets from the chip's final slot (intermediate nodes use

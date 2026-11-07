@@ -56,8 +56,19 @@ export function applyTask(
   let step = 0;
   const note = (id: string, m: Partial<ArtifactMotion>) => {
     if (!motions) return;
-    const prev = motions.get(id) ?? { id, fromNode: places.get(id)?.node, start: step };
-    motions.set(id, { ...prev, ...m, end: step });
+    const prev = motions.get(id);
+    // Merely being used (derive source, inspect, keep original) doesn't
+    // animate, so it must not stretch the chip's animation window.
+    const onlyTouched = Object.keys(m).every((k) => k === "touched");
+    if (!prev) {
+      motions.set(id, { id, fromNode: places.get(id)?.node, ...m, ...(onlyTouched ? {} : { start: step, end: step }) });
+      return;
+    }
+    motions.set(id, {
+      ...prev,
+      ...m,
+      ...(onlyTouched ? {} : { start: prev.start ?? step, end: step }),
+    });
   };
   const place = (id: string) => places.get(id) ?? { visible: false };
   const set = (id: string, p: ArtifactPlace) => places.set(id, p);
