@@ -876,3 +876,25 @@
 .loom-artifact-chip.is-hidden {
   opacity: 0;
 }
+
+/* A tool attached to its node: solid, node-coloured band across the
+   node's bottom edge with a wrench mark. */
+.loom-artifact-chip.is-tool {
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--loom-text-secondary);
+  border-color: var(--loom-text-secondary);
+  color: var(--loom-bg);
+  font-weight: 600;
+}
+.loom-artifact-chip-tool {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+.loom-artifact-chip.is-tool.is-active {
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: #fff;
+}

@@ -7,11 +7,22 @@ import type { ChipAnim, LoomArtifactChipData } from "../components/LoomArtifactC
 export const CHIP_W = 118;
 export const CHIP_H = 20;
 const CHIP_GAP = 3;
+export const TOOL_W = 104;
+export const TOOL_H = 18;
 
 /** Where the i-th chip on a node sits: a column hanging off the node's
  * lower-right corner, so chips never cover the node's own label. */
 export function chipSlot(nodePos: { x: number; y: number }, g: CellGeometry, i: number) {
   return { x: nodePos.x + g.nodeW - CHIP_W * 0.55, y: nodePos.y + g.nodeH - CHIP_H * 0.5 + i * (CHIP_H + CHIP_GAP) };
+}
+
+/** Where the i-th tool sits: attached across the node's bottom edge,
+ * centred, so it reads as part of the node rather than lying beside it. */
+export function toolSlot(nodePos: { x: number; y: number }, g: CellGeometry, i: number) {
+  // A hexagon narrows to a point at the bottom, so the band sits inside
+  // its lower half instead of on the (pointed) edge.
+  const base = g.oddRowShift > 0 ? g.nodeH * 0.7 : g.nodeH - TOOL_H * 0.6;
+  return { x: nodePos.x + (g.nodeW - TOOL_W) / 2, y: nodePos.y + base - i * (TOOL_H + 2) };
 }
 
 /** Shortest node path a -> b over the architecture edges (direction
@@ -69,9 +80,11 @@ export function toArtifactNodes(
   edges: { from: string; to: string }[] = [],
 ): Node[] {
   const slotIndex = new Map<string, number>();
-  const nextSlot = (node: string) => {
-    const i = slotIndex.get(node) ?? 0;
-    slotIndex.set(node, i + 1);
+  const toolIndex = new Map<string, number>();
+  const nextSlot = (node: string, tool = false) => {
+    const m = tool ? toolIndex : slotIndex;
+    const i = m.get(node) ?? 0;
+    m.set(node, i + 1);
     return i;
   };
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
@@ -93,7 +106,12 @@ export function toArtifactNodes(
     const pos = nodePos.get(p.node);
     if (!pos) return;
     const m = motions.get(a.id);
-    const slot = p.visible ? chipSlot(pos, g, nextSlot(p.node)) : chipSlot(pos, g, 0);
+    const isTool = !!a.tool;
+    const slot = isTool
+      ? toolSlot(pos, g, p.visible ? nextSlot(p.node, true) : 0)
+      : p.visible
+        ? chipSlot(pos, g, nextSlot(p.node))
+        : chipSlot(pos, g, 0);
     let anim: ChipAnim | undefined;
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
@@ -107,9 +125,10 @@ export function toArtifactNodes(
       // A chip used up in this step stays visible to play its fade.
       hidden: !p.visible && !m?.ended,
       anim,
+      tool: isTool,
       stepKey,
     };
-    out.push(chipNode(`artifact-${a.id}`, slot, data, p.visible ? 5 : 4));
+    out.push(chipNode(`artifact-${a.id}`, slot, data, p.visible ? 5 : 4, isTool));
   });
 
   // Flying copies (keep) and transient signals: sender -> receiver along
@@ -133,7 +152,7 @@ export function toArtifactNodes(
   return out;
 }
 
-function chipNode(id: string, position: { x: number; y: number }, data: LoomArtifactChipData, zIndex: number): Node {
+function chipNode(id: string, position: { x: number; y: number }, data: LoomArtifactChipData, zIndex: number, tool = false): Node {
   return {
     id,
     type: "loomArtifact",
@@ -145,6 +164,6 @@ function chipNode(id: string, position: { x: number; y: number }, data: LoomArti
     focusable: false,
     zIndex,
     className: "loom-artifact-node",
-    style: { width: CHIP_W, height: CHIP_H, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
+    style: { width: tool ? TOOL_W : CHIP_W, height: tool ? TOOL_H : CHIP_H, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
   };
 }

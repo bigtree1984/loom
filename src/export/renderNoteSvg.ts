@@ -234,13 +234,47 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     // Wider than the node (up to the cell pitch) so labels survive.
     const chipW = Math.max(g.nodeW + 24, g.pitchX - 24);
     const chipH = 54;
+    const toolsPerNode = new Map<string, number>();
+    // Tools: a solid band across the node's bottom edge (attached to it).
     doc.artifacts.forEach((a) => {
+      if (!a.tool) return;
       const p = artState.places.get(a.id);
       if (!p?.visible || !p.node) return;
       const c = centers.get(p.node);
       if (!c) return;
-      const i = perNode.get(p.node) ?? 0;
-      perNode.set(p.node, i + 1);
+      const k = toolsPerNode.get(p.node) ?? 0;
+      toolsPerNode.set(p.node, k + 1);
+      const on = touched.has(a.id);
+      const tw = g.nodeW * 0.8;
+      const th = 50;
+      const bottom = c.y + (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2);
+      // Hex nodes come to a point: keep the band inside the lower half.
+      const top = (layout === "hex" ? c.y + g.nodeH * 0.2 : bottom - th * 0.6) - k * (th + 4);
+      // In use: white band with an accent outline, so it still stands out
+      // on a main node that is itself filled with the accent colour.
+      const fill = on ? C.bg : C.textSub;
+      const stroke = on ? ` stroke="${accentRoute.strong}" stroke-width="${STROKE_MIN / 2}"` : "";
+      nodeSvg.push(`<rect x="${r(c.x - tw / 2)}" y="${r(top)}" width="${r(tw)}" height="${th}" rx="8" fill="${fill}"${stroke}/>`);
+      const [line] = wrapText(a.label, { maxEm: (tw - 30) / NODE_FONT, maxLines: 1 });
+      nodeSvg.lines([line], c.x, top + th / 2 + NODE_FONT * 0.36, {
+        size: NODE_FONT,
+        lh: NODE_LH,
+        fill: on ? C.text : C.bg,
+        weight: 700,
+        anchor: "middle",
+      });
+      artBottom = Math.max(artBottom, top + th);
+    });
+    doc.artifacts.forEach((a) => {
+      if (a.tool) return;
+      const p = artState.places.get(a.id);
+      if (!p?.visible || !p.node) return;
+      const c = centers.get(p.node);
+      if (!c) return;
+      const idx = perNode.get(p.node) ?? 0;
+      perNode.set(p.node, idx + 1);
+      // Below any tool band attached to the same node.
+      const i = idx + (toolsPerNode.get(p.node) ? 0.6 : 0);
       const top = c.y + (layout === "hex" ? g.nodeH * 0.38 : g.nodeH / 2) - 14 + i * (chipH + 6);
       const on = touched.has(a.id);
       const x0 = c.x - chipW / 2;

@@ -105,7 +105,8 @@
     },
     {
       "id": "model",
-      "label": "モデル 4.3GB"
+      "label": "モデル 4.3GB",
+      "tool": true
     },
     {
       "id": "text",

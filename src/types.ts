@@ -72,6 +72,10 @@ export interface Artifact {
   at?: string;
   /** Signals / triggers / requests: vanish once received. */
   transient?: boolean;
+  /** A tool (function, model…): travels like any artifact, but once it
+   * rests on a node it is drawn attached to that node, and actions use it
+   * without changing it (DESIGN_v3 §3.2). */
+  tool?: boolean;
 }
 
 export type ActionType = "create" | "send" | "receive" | "transform" | "derive" | "inspect" | "discard";
