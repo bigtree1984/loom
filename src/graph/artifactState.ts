@@ -30,6 +30,10 @@ export interface ArtifactMotion {
   /** Nodes it passed through this step, start first (hops between them may
    * still need routing along architecture edges — see toArtifactNodes). */
   path?: string[];
+  /** Index of the first / last action in the task that touched it, so the
+   * looping animation can play the actions one after another. */
+  start?: number;
+  end?: number;
 }
 
 export type ArtifactPlaces = Map<string, ArtifactPlace>;
@@ -49,15 +53,17 @@ export function applyTask(
   motions?: Map<string, ArtifactMotion>,
 ) {
   const subject = task.mainNode;
+  let step = 0;
   const note = (id: string, m: Partial<ArtifactMotion>) => {
     if (!motions) return;
-    const prev = motions.get(id) ?? { id, fromNode: places.get(id)?.node };
-    motions.set(id, { ...prev, ...m });
+    const prev = motions.get(id) ?? { id, fromNode: places.get(id)?.node, start: step };
+    motions.set(id, { ...prev, ...m, end: step });
   };
   const place = (id: string) => places.get(id) ?? { visible: false };
   const set = (id: string, p: ArtifactPlace) => places.set(id, p);
 
-  for (const a of task.actions ?? []) {
+  for (const [ai, a] of (task.actions ?? []).entries()) {
+    step = ai;
     const ins = a.artifacts ?? [];
     const outs = a.results ?? [];
     switch (a.type) {
@@ -129,6 +135,8 @@ export function applyTask(
       toNode: to,
       ghost: true,
       path: [from, to].filter((n): n is string => !!n),
+      start: step,
+      end: step,
     });
   }
 }

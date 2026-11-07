@@ -2,12 +2,54 @@ import { useEffect, useRef } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 /** One looping animation for the current step (DESIGN_v3: the step's
- * artifact changes replay while the step is shown). Offsets are relative
- * to where the chip finally sits. */
-export type ChipAnim =
+ * artifact changes replay while the step is shown). The step's actions
+ * play one after another: each chip animates only inside its own window
+ * [from, to] (fractions of the loop), so a copy arriving and a result
+ * being born don't happen on top of each other. Offsets are relative to
+ * where the chip finally sits. */
+export type ChipAnim = (
   | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean }
   | { kind: "born" }
-  | { kind: "ended" };
+  | { kind: "ended" }
+) & { from: number; to: number; duration: number };
+
+function keyframesFor(a: ChipAnim): Keyframe[] {
+  const { from, to } = a;
+  const span = to - from;
+  const at = (f: number) => from + span * f;
+  if (a.kind === "born") {
+    return [
+      { opacity: 0, transform: "scale(0.6)", offset: 0 },
+      { opacity: 0, transform: "scale(0.6)", offset: from },
+      { opacity: 1, transform: "scale(1)", offset: at(0.5) },
+      { opacity: 1, transform: "scale(1)", offset: 1 },
+    ];
+  }
+  if (a.kind === "ended") {
+    return [
+      { opacity: 1, offset: 0 },
+      { opacity: 1, offset: from },
+      { opacity: 0, offset: at(0.6) },
+      { opacity: 0, offset: 1 },
+    ];
+  }
+  // move: rest at the start until the window opens, travel the waypoints
+  // at an even pace inside it, then rest at the end (or fade, for a flying
+  // copy / signal that is gone on arrival).
+  const pts = a.points.length ? a.points : [{ dx: 0, dy: 0 }];
+  const t = (p: { dx: number; dy: number }) => `translate(${p.dx}px, ${p.dy}px)`;
+  const startOpacity = a.fadeIn ? 0 : 1;
+  const frames: Keyframe[] = [{ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: 0 }];
+  frames.push({ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: from });
+  const hops = Math.max(1, pts.length - 1);
+  pts.forEach((p, i) => frames.push({ transform: t(p), opacity: 1, offset: at((0.15 + (0.85 * i) / hops) * 0.85) }));
+  frames.push({ transform: "translate(0, 0)", opacity: 1, offset: at(0.85) });
+  frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: to });
+  frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: 1 });
+  // Offsets must not decrease.
+  for (let i = 1; i < frames.length; i++) frames[i].offset = Math.max(frames[i].offset as number, frames[i - 1].offset as number);
+  return frames;
+}
 
 export interface LoomArtifactChipData extends Record<string, unknown> {
   label: string;
@@ -23,47 +65,6 @@ export interface LoomArtifactChipData extends Record<string, unknown> {
   stepKey: string;
 }
 
-const HOP_MS = 900;
-const HOLD_MS = 900;
-
-function keyframesFor(a: ChipAnim): { frames: Keyframe[]; duration: number } {
-  if (a.kind === "born") {
-    return {
-      frames: [
-        { opacity: 0, transform: "scale(0.6)", offset: 0 },
-        { opacity: 1, transform: "scale(1)", offset: 0.4 },
-        { opacity: 1, transform: "scale(1)", offset: 1 },
-      ],
-      duration: 1600,
-    };
-  }
-  if (a.kind === "ended") {
-    return {
-      frames: [
-        { opacity: 1, offset: 0 },
-        { opacity: 1, offset: 0.35 },
-        { opacity: 0, offset: 0.7 },
-        { opacity: 0, offset: 1 },
-      ],
-      duration: 1800,
-    };
-  }
-  // move: travel the waypoints at an even pace, then rest (or fade, for a
-  // flying copy / signal that is gone on arrival).
-  const hops = Math.max(1, a.points.length - 1);
-  const travel = hops * HOP_MS;
-  const duration = travel + HOLD_MS;
-  const frames: Keyframe[] = a.points.map((p, i) => ({
-    transform: `translate(${p.dx}px, ${p.dy}px)`,
-    opacity: 1,
-    offset: ((i / hops) * travel) / duration,
-  }));
-  frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: 1 });
-  if (a.fadeOut) frames[0].opacity = 0.9;
-  if (a.fadeIn) frames[0].opacity = 0;
-  return { frames, duration };
-}
-
 /** An artifact on a node (v3). */
 export function LoomArtifactChip({ data }: NodeProps) {
   const d = data as LoomArtifactChipData;
@@ -72,8 +73,7 @@ export function LoomArtifactChip({ data }: NodeProps) {
     const el = ref.current;
     if (!el || !d.anim || typeof el.animate !== "function") return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const { frames, duration } = keyframesFor(d.anim);
-    const anim = el.animate(frames, { duration, iterations: Infinity, easing: "ease-in-out" });
+    const anim = el.animate(keyframesFor(d.anim), { duration: d.anim.duration, iterations: Infinity, easing: "ease-in-out" });
     return () => anim.cancel();
     // stepKey restarts the loop on every step.
     // eslint-disable-next-line react-hooks/exhaustive-deps

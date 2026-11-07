@@ -89,6 +89,16 @@ export function toArtifactNodes(
   };
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
   const out: Node[] = [];
+  // The step's actions play one after another in a shared loop.
+  const ACTION_MS = 1300;
+  const HOLD_MS = 1000;
+  const actions = Math.max(1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1));
+  const duration = actions * ACTION_MS + HOLD_MS;
+  const win = (m: ArtifactMotion) => ({
+    from: ((m.start ?? 0) * ACTION_MS) / duration,
+    to: (((m.end ?? 0) + 1) * ACTION_MS) / duration,
+    duration,
+  });
   // Waypoints as offsets from the chip's final slot (intermediate nodes use
   // their first slot).
   const pointsFor = (path: string[], end: { x: number; y: number }) =>
@@ -115,9 +125,9 @@ export function toArtifactNodes(
     let anim: ChipAnim | undefined;
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
-    if (m?.path && m.path.length > 1 && p.visible) anim = { kind: "move", points: pointsFor(m.path, slot), fadeIn: !!m.born };
-    else if (m?.born) anim = { kind: "born" };
-    else if (m?.ended) anim = { kind: "ended" };
+    if (m?.path && m.path.length > 1 && p.visible) anim = { kind: "move", points: pointsFor(m.path, slot), fadeIn: !!m.born, ...win(m) };
+    else if (m?.born) anim = { kind: "born", ...win(m) };
+    else if (m?.ended) anim = { kind: "ended", ...win(m) };
     const data: LoomArtifactChipData = {
       label: a.label,
       active: touched.has(a.id),
@@ -138,13 +148,15 @@ export function toArtifactNodes(
     if (!m.ghost || !m.toNode || !m.path) return;
     const to = nodePos.get(m.toNode);
     if (!to) return;
-    const end = chipSlot(to, g, 0);
+    // A copy / signal flies into the receiving node itself (its centre) and
+    // is absorbed there, clear of the chips hanging below that node.
+    const end = { x: to.x + (g.nodeW - CHIP_W) / 2, y: to.y + (g.nodeH - CHIP_H) / 2 };
     const a = artifacts.find((x) => x.id === m.id);
     const data: LoomArtifactChipData = {
       label: a?.label ?? m.id,
       active: true,
       color,
-      anim: { kind: "move", points: pointsFor(m.path, end), fadeOut: true },
+      anim: { kind: "move", points: pointsFor(m.path, end), fadeOut: true, ...win(m) },
       stepKey: `${stepKey}-${gi++}`,
     };
     out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6));
