@@ -1300,3 +1300,14 @@
   font-size: 11px;
   color: var(--loom-text-secondary);
 }
+.te-link {
+  flex-wrap: wrap;
+}
+.te-link-name {
+  flex: 1;
+}
+.te-link-label {
+  font: inherit;
+  font-size: 12px;
+  width: 7em;
+}

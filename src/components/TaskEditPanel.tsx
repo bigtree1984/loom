@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import type { ActionType, Artifact, LoomDocument, Task, TaskAction } from "../types";
+import type { ActionType, Artifact, Connection, LoomDocument, Task, TaskAction } from "../types";
 import type { PickTarget } from "./TaskEditorModal";
 import { nextId } from "../graph/ids";
 import { describeAction } from "../graph/describeAction";
@@ -34,13 +34,11 @@ interface Props {
   /** Live edit; same coalesceKey in a row = one undo step (typing). */
   onEdit: (doc: LoomDocument, coalesceKey?: string) => void;
   onClose: () => void;
-  /** Opens the full dialog (connections between tasks). */
-  onOpenDetails: () => void;
   /** Pick a node by clicking the architecture diagram. */
   onPick?: (target: PickTarget, current: string[], apply: (ids: string[]) => void) => void;
 }
 
-export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails, onPick }: Props) {
+export function TaskEditPanel({ doc, taskId, onEdit, onClose, onPick }: Props) {
   const task = doc.flow.tasks.find((t) => t.id === taskId);
   const [adding, setAdding] = useState(false);
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
@@ -76,7 +74,6 @@ export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails, onP
       <div className="panel-header">
         <div className="panel-title">タスクを編集</div>
         <div className="panel-header-actions">
-          <button onClick={onOpenDetails} title="前後のタスクとのつながりなど">つながり…</button>
           <button onClick={onClose} aria-label="編集欄を閉じる">閉じる</button>
         </div>
       </div>
@@ -102,6 +99,8 @@ export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails, onP
             ))}
           </select>
         </label>
+
+        <Links doc={doc} taskId={taskId} onEdit={onEdit} onPick={onPick} />
 
         <div className="te-actions-head">アクション</div>
         <ol className="te-actions">
@@ -440,5 +439,113 @@ function ArtifactPicker({ label, selected, artifacts, usable, onChange, onCreate
         </div>
       )}
     </div>
+  );
+}
+
+/** 前のタスク / 次のタスク (flow connections), edited live. A task with
+ * several labelled next tasks is a decision: each option has a label, and
+ * one can be marked as the main route (DESIGN_v3 §3.13). */
+function Links({ doc, taskId, onEdit, onPick }: { doc: LoomDocument; taskId: string; onEdit: Props["onEdit"]; onPick?: Props["onPick"] }) {
+  const conns = doc.flow.connections;
+  const incoming = conns.filter((c) => c.to === taskId);
+  const outgoing = conns.filter((c) => c.from === taskId);
+  const others = doc.flow.tasks.filter((t) => t.id !== taskId);
+  const taskLabel = (id: string) => doc.flow.tasks.find((t) => t.id === id)?.label ?? id;
+  const setConns = (next: Connection[], key?: string) =>
+    onEdit({ ...doc, flow: { ...doc.flow, connections: [...conns.filter((c) => c.from !== taskId && c.to !== taskId), ...next] } }, key);
+  const mine = [...incoming, ...outgoing];
+  const replace = (old: Connection, next: Connection | null, key?: string) =>
+    setConns(next ? mine.map((c) => (c === old ? next : c)) : mine.filter((c) => c !== old), key);
+  const pickApply = (dir: "prev" | "next") => (ids: string[]) => {
+    const isDir = (c: Connection) => (dir === "next" ? c.from === taskId : c.to === taskId);
+    const other = (c: Connection) => (dir === "next" ? c.to : c.from);
+    const kept = mine.filter((c) => !isDir(c) || ids.includes(other(c)));
+    const have = new Set(kept.filter(isDir).map(other));
+    const added = ids.filter((t) => !have.has(t)).map((t) => (dir === "next" ? { from: taskId, to: t } : { from: t, to: taskId }));
+    setConns([...kept, ...added]);
+  };
+  const decision = outgoing.length > 1;
+
+  const section = (dir: "prev" | "next", list: Connection[]) => {
+    const otherOf = (c: Connection) => (dir === "next" ? c.to : c.from);
+    const free = others.filter((t) => !list.some((c) => otherOf(c) === t.id));
+    return (
+      <div className="te-field">
+        <span className="te-field-head">
+          {dir === "prev" ? "前のタスク" : "次のタスク"}
+          {onPick && <PickButtonMulti onClick={() => onPick(dir, list.map(otherOf), pickApply(dir))} />}
+        </span>
+        <ul className="ne-edges">
+          {list.length === 0 && <li className="al-none">{dir === "prev" ? "ありません（流れの始まり）" : "ありません（流れの終わり）"}</li>}
+          {list.map((c, i) => (
+            <li key={`${c.from}-${c.to}-${i}`} className="te-link">
+              <span className="te-link-name">
+                {dir === "prev" ? "← " : "→ "}
+                {taskLabel(otherOf(c))}
+              </span>
+              {dir === "next" && decision && (
+                <>
+                  <input
+                    className="te-link-label"
+                    value={c.label ?? ""}
+                    placeholder="選択肢の名前"
+                    onChange={(e) => replace(c, { ...c, label: e.target.value || undefined }, `${c.from}>${c.to}:label`)}
+                    aria-label="選択肢の名前"
+                  />
+                  <label className="te-check" title="途中へジャンプするとき、この道を通ったことにする">
+                    <input
+                      type="checkbox"
+                      checked={!!c.main}
+                      onChange={(e) =>
+                        setConns(
+                          mine.map((x) =>
+                            x === c ? { ...x, main: e.target.checked || undefined } : x.from === taskId && e.target.checked ? { ...x, main: undefined } : x,
+                          ),
+                        )
+                      }
+                    />
+                    正規
+                  </label>
+                </>
+              )}
+              <button className="te-delete" onClick={() => replace(c, null)} aria-label="このつながりを消す">
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+        <select
+          className="te-chip-add"
+          value=""
+          onChange={(e) => {
+            const t = e.target.value;
+            if (!t) return;
+            setConns([...mine, dir === "next" ? { from: taskId, to: t } : { from: t, to: taskId }]);
+          }}
+          aria-label={dir === "prev" ? "前のタスクを足す" : "次のタスクを足す"}
+        >
+          <option value="">＋ 足す…</option>
+          {free.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+  return (
+    <>
+      {section("prev", incoming)}
+      {section("next", outgoing)}
+    </>
+  );
+}
+
+function PickButtonMulti({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="te-pick" onClick={onClick} title="タスクの図でタスクをクリックして選ぶ（完了で確定）">
+      図から選ぶ
+    </button>
   );
 }

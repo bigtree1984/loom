@@ -505,7 +505,7 @@ function App() {
             readOnly={present}
             picking={
               pickingFlow
-                ? { selected: pickedSet, exclude: editor?.kind === "task" ? editor.id ?? undefined : undefined, onPick: togglePick }
+                ? { selected: pickedSet, exclude: editor?.kind === "task" ? editor.id ?? undefined : panelTask ?? undefined, onPick: togglePick }
                 : null
             }
           />
@@ -566,7 +566,6 @@ function App() {
             taskId={panelTask}
             onEdit={loom.editDocument}
             onClose={() => setPanelTask(null)}
-            onOpenDetails={() => setEditor({ kind: "task", id: panelTask })}
             onPick={startPick}
           />
         )}
