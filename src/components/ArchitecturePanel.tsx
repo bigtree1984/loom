@@ -37,6 +37,41 @@ function FitOnLayoutChange({ layout }: { layout: ArchLayout }) {
   return null;
 }
 
+/** When the step changes, pan (zoom unchanged) so the current task's
+ * subject nodes are in view if any of them is outside it. */
+function KeepMainInView({ nodes }: { nodes: Node[] }) {
+  const { getViewport, setCenter, getNode } = useReactFlow();
+  const key = nodes
+    .filter((n) => (n.data as { fill?: string })?.fill)
+    .map((n) => n.id)
+    .join(",");
+  useEffect(() => {
+    if (!key) return;
+    const id = requestAnimationFrame(() => {
+      const el = document.querySelector(".architecture-panel .react-flow") as HTMLElement | null;
+      if (!el) return;
+      const { x, y, zoom } = getViewport();
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const boxes = key
+        .split(",")
+        .map((id) => getNode(id))
+        .filter((n): n is Node => !!n)
+        .map((n) => ({ x: n.position.x, y: n.position.y, w: n.measured?.width ?? n.width ?? 0, h: n.measured?.height ?? n.height ?? 0 }));
+      if (!boxes.length) return;
+      const inView = boxes.every(
+        (b) => b.x * zoom + x >= 0 && b.y * zoom + y >= 0 && (b.x + b.w) * zoom + x <= w && (b.y + b.h) * zoom + y <= h,
+      );
+      if (inView) return;
+      const cx = boxes.reduce((s, b) => s + b.x + b.w / 2, 0) / boxes.length;
+      const cy = boxes.reduce((s, b) => s + b.y + b.h / 2, 0) / boxes.length;
+      void setCenter(cx, cy, { zoom, duration: 300 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [key, getViewport, setCenter, getNode]);
+  return null;
+}
+
 interface Props {
   nodes: Node[];
   edges: Edge[];
@@ -399,6 +434,7 @@ export function ArchitecturePanel({
           proOptions={{ hideAttribution: true }}
         >
           <FitOnLayoutChange layout={layout} />
+          <KeepMainInView nodes={nodes} />
           <Background gap={16} size={1} />
           <Controls showInteractive={false} />
         </ReactFlow>
