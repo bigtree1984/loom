@@ -1281,3 +1281,22 @@
   font-size: 11px;
   padding: 1px 8px;
 }
+.ne-edges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ne-edges li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.task-edit-panel .modal-section-title {
+  margin: 0;
+  font-size: 11px;
+  color: var(--loom-text-secondary);
+}

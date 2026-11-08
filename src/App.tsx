@@ -26,6 +26,7 @@ import { NodeEditorModal } from "./components/NodeEditorModal";
 import { SINGLE_PICK, TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
 import { TaskEditPanel } from "./components/TaskEditPanel";
 import { ArtifactListPanel } from "./components/ArtifactListPanel";
+import { NodeEditPanel } from "./components/NodeEditPanel";
 import { tasksWithIssues } from "./graph/actionCheck";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
@@ -79,9 +80,16 @@ function App() {
   // Task open in the side editor; playback follows it after every edit.
   const [panelTask, setPanelTask] = useState<string | null>(null);
   const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const [panelNode, setPanelNode] = useState<string | null>(null);
+  const openNodePanel = useCallback((id: string) => {
+    setArtifactsOpen(false);
+    setPanelTask(null);
+    setPanelNode(id);
+  }, []);
   const openTaskPanel = useCallback(
     (id: string) => {
       setArtifactsOpen(false);
+      setPanelNode(null);
       setPanelTask(id);
       loom.jumpTo(id);
     },
@@ -506,7 +514,7 @@ function App() {
                 onReverseEdge={handleReverseEdge}
                 onSetEdgeDirection={handleSetEdgeDirection}
                 onNodeDragEnd={handleNodeDragEnd}
-                onNodeDoubleClick={(id) => setEditor({ kind: "node", id })}
+                onNodeDoubleClick={openNodePanel}
                 onAddNode={() => setEditor({ kind: "node", id: null })}
                 onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
                 onAddGroup={() => setEditor({ kind: "group", id: null })}
@@ -527,7 +535,10 @@ function App() {
         {artifactsOpen && !present && !note && loom.doc && (
           <ArtifactListPanel doc={loom.doc} onEdit={loom.editDocument} onClose={() => setArtifactsOpen(false)} onOpenTask={openTaskPanel} />
         )}
-        {!artifactsOpen && panelTask && !present && !note && loom.doc?.flow.tasks.some((t) => t.id === panelTask) && (
+        {!artifactsOpen && panelNode && !present && !note && loom.doc?.architecture.nodes.some((n) => n.id === panelNode) && (
+          <NodeEditPanel doc={loom.doc} nodeId={panelNode} onEdit={loom.editDocument} onClose={() => setPanelNode(null)} />
+        )}
+        {!artifactsOpen && !panelNode && panelTask && !present && !note && loom.doc?.flow.tasks.some((t) => t.id === panelTask) && (
           <TaskEditPanel
             doc={loom.doc}
             taskId={panelTask}

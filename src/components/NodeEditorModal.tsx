@@ -5,7 +5,7 @@ import { memberships } from "../graph/lanes";
 import { Modal } from "./Modal";
 import { IconPicker } from "./IconPicker";
 
-const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
+export const NODE_TYPES: ArchNodeType[] = ["human", "frontend", "backend", "agent", "storage"];
 
 interface Props {
   doc: LoomDocument;
@@ -222,7 +222,7 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
 /** 「最初からあるもの」(DESIGN_v3 §4 item 8): artifacts on this node at the
  * start. Ones some task creates are listed greyed with ⚠ (still choosable —
  * the checker then flags that task's action). */
-function InitialArtifacts({
+export function InitialArtifacts({
   doc,
   nodeId,
   selected,
