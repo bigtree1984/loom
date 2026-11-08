@@ -17,10 +17,10 @@ export interface ExportResult {
 const FONT_WARNING = "Noto Sans JP を埋め込めなかったため、端末のフォントで書き出しました。";
 
 /** Highlight for a single task, as useLoomState would compute it (route 1). */
-export function highlightForTask(t: Task): NoteHighlight {
+export function highlightForTask(t: Task, fetched?: string[]): NoteHighlight {
   const m: NoteHighlight = new Map();
   m.set(t.mainNode, { role: "main", routeIndex: 0 });
-  addIoHighlights(m, t, 0);
+  addIoHighlights(m, t, 0, fetched);
   return m;
 }
 
@@ -84,14 +84,15 @@ export async function exportAllSteps(doc: LoomDocument): Promise<ExportResult> {
   const warnings: string[] = [];
   for (let i = 0; i < ordered.length; i++) {
     const t = ordered[i];
+    // Artifacts as if the list were played in order up to this step.
+    const state = doc.artifacts?.length ? artifactStateAt(doc, ordered.slice(0, i + 1).map((x) => [x.id])) : null;
     const fig = renderNoteFigure({
       doc,
       orderedTasks: ordered,
-      highlight: highlightForTask(t),
+      highlight: highlightForTask(t, state?.sources.get(t.id)),
       stepTasks: [t],
       stepLabel: `STEP ${i + 1} / ${ordered.length}`,
-      // Artifacts as if the list were played in order up to this step.
-      artifactState: doc.artifacts?.length ? artifactStateAt(doc, ordered.slice(0, i + 1).map((x) => [x.id])) : null,
+      artifactState: state,
     });
     const png = await figureToPng(fig);
     collect(warnings, fig.warnings);

@@ -407,6 +407,14 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   // node is already the lowest routeIndex — a later task sharing the same
   // mainNode (e.g. two parallel branches on one shared service) must not
   // overwrite it.
+
+  // v3 artifacts: where each one is after the played path, and what the
+  // current step did to them (DESIGN_v3 §3.4, §3.6).
+  const artifactState = useMemo(
+    () => (doc?.artifacts?.length ? artifactStateAt(doc, [...history.map((h) => h.position), position]) : null),
+    [doc, history, position],
+  );
+
   const highlightedArchNodes = useMemo(() => {
     const map = new Map<string, ArchNodeHighlight>();
     currentTasks.forEach((t) => {
@@ -416,17 +424,10 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     });
     currentTasks.forEach((t) => {
       const routeIndex = routeColorByTask.get(t.id) ?? 0;
-      addIoHighlights(map, t, routeIndex);
+      addIoHighlights(map, t, routeIndex, artifactState?.sources.get(t.id));
     });
     return map;
-  }, [currentTasks, routeColorByTask]);
-
-  // v3 artifacts: where each one is after the played path, and what the
-  // current step did to them (DESIGN_v3 §3.4, §3.6).
-  const artifactState = useMemo(
-    () => (doc?.artifacts?.length ? artifactStateAt(doc, [...history.map((h) => h.position), position]) : null),
-    [doc, history, position],
-  );
+  }, [currentTasks, routeColorByTask, artifactState]);
 
   const isHumanGate = useMemo(
     () => currentTasks.some((t) => archNodesById.get(t.mainNode)?.type === "human"),

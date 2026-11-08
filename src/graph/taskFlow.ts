@@ -13,10 +13,10 @@ export interface NodeHighlight {
 
 /** Add one task's io nodes to a highlight map (main nodes already set).
  * A node that is both an input and an output of the task gets "both". */
-export function addIoHighlights(map: Map<string, NodeHighlight>, t: Task, routeIndex: number) {
-  const ins = new Set(t.inputNodes);
+export function addIoHighlights(map: Map<string, NodeHighlight>, t: Task, routeIndex: number, fetched: string[] = []) {
+  const ins = new Set([...t.inputNodes, ...fetched]);
   const outs = new Set(t.outputNodes);
-  [...new Set([...t.inputNodes, ...t.outputNodes])].forEach((n) => {
+  [...new Set([...ins, ...t.outputNodes])].forEach((n) => {
     if (map.has(n)) return;
     const flow: IoFlow = ins.has(n) && outs.has(n) ? "both" : ins.has(n) ? "in" : "out";
     map.set(n, { role: "io", routeIndex, flow });

@@ -57,8 +57,17 @@ export function applyTask(
   task: Task,
   byId: Map<string, Artifact>,
   motions?: Map<string, ArtifactMotion>,
+  sources?: Map<string, string[]>,
 ) {
   const subject = task.mainNode;
+  // Sending something that sits on another node: it is fetched from there
+  // first, so that node is an input of the task too (edge highlight).
+  const fetchedFrom = (node: string | undefined) => {
+    if (!sources || !node || node === subject) return;
+    const l = sources.get(task.id) ?? [];
+    if (!l.includes(node)) l.push(node);
+    sources.set(task.id, l);
+  };
   let step = 0;
   const note = (id: string, m: Partial<ArtifactMotion>) => {
     if (!motions) return;
@@ -100,6 +109,7 @@ export function applyTask(
         const target = a.type === "send" ? a.to : subject;
         if (!target) break;
         ins.forEach((id) => {
+          if (a.type === "send") fetchedFrom(place(id).node);
           const transient = !!byId.get(id)?.transient;
           // A transient signal is used up on arrival (it still flies first);
           // so is the copy of a keep:true send, handled just below.
@@ -181,7 +191,14 @@ export function applyTask(
 export function artifactStateAt(
   doc: LoomDocument,
   steps: string[][],
-): { places: ArtifactPlaces; motions: Map<string, ArtifactMotion>; before: ArtifactPlaces; actionCount: number } {
+): {
+  places: ArtifactPlaces;
+  motions: Map<string, ArtifactMotion>;
+  before: ArtifactPlaces;
+  actionCount: number;
+  /** Current step: per task, other nodes its sent artifacts were taken from. */
+  sources: Map<string, string[]>;
+} {
   const artifacts = doc.artifacts ?? [];
   const byId = new Map(artifacts.map((a) => [a.id, a]));
   const tasks = new Map(doc.flow.tasks.map((t) => [t.id, t]));
@@ -190,6 +207,7 @@ export function artifactStateAt(
   let prev = new Set<string>();
   let before: ArtifactPlaces = new Map(places);
   let actionCount = 0;
+  const sources = new Map<string, string[]>();
   steps.forEach((step, i) => {
     const last = i === steps.length - 1;
     if (last) before = new Map([...places].map(([k, v]) => [k, { ...v }]));
@@ -197,10 +215,10 @@ export function artifactStateAt(
     step.forEach((id) => {
       if (prev.has(id)) return;
       const t = tasks.get(id);
-      if (t) applyTask(places, t, byId, last ? motions : undefined);
+      if (t) applyTask(places, t, byId, last ? motions : undefined, last ? sources : undefined);
       if (t && last) actionCount = Math.max(actionCount, t.actions?.length ?? 0);
     });
     prev = new Set(step);
   });
-  return { places, motions, before, actionCount };
+  return { places, motions, before, actionCount, sources };
 }
