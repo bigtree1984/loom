@@ -3,6 +3,7 @@ import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
 import { artifactStateAt } from "../graph/artifactState";
+import { flowContext, mainRouteTo, stepFlow } from "../graph/mainRoute";
 
 export type { NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
 import { addIoHighlights, type NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
@@ -21,6 +22,9 @@ type JoinArrivals = Record<string, string[] | "bypass">;
 interface PositionSnapshot {
   position: string[];
   joinArrivals: JoinArrivals;
+  /** A jump left this position and replayed from the start: artifact
+   * state ignores this snapshot and everything before it. */
+  restartAfter?: boolean;
 }
 
 const AUTO_PLAY_INTERVAL_MS = 1800;
@@ -211,11 +215,9 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
         const outs = outgoingByTask.get(taskId) ?? [];
         const labeled = outs.filter((o) => !!o.label);
         if (labeled.length === 0) return null;
-        const sorted = [...labeled].sort((a, b) => {
-          const aBack = backEdgeKeys.has(`${a.from}::${a.to}`) ? 0 : 1;
-          const bBack = backEdgeKeys.has(`${b.from}::${b.to}`) ? 0 : 1;
-          return aBack - bBack;
-        });
+        // Loop-backs first, the main-route option last (the default).
+        const rank = (o: Connection) => (backEdgeKeys.has(`${o.from}::${o.to}`) ? 0 : o.main ? 2 : 1);
+        const sorted = [...labeled].sort((a, b) => rank(a) - rank(b));
         return {
           taskId,
           taskLabel: tasksById.get(taskId)?.label ?? taskId,
@@ -235,80 +237,18 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     [position, outgoingByTask],
   );
 
+  const flowCtx = useMemo(() => (doc ? flowContext(doc) : null), [doc]);
+
   const advance = useCallback(
     (choices?: Record<string, string>) => {
-      const nextTargets: string[] = [];
-      const nextArrivals: JoinArrivals = {};
-      Object.entries(joinArrivals).forEach(([k, v]) => {
-        nextArrivals[k] = v === "bypass" ? "bypass" : [...v];
-      });
-
-      for (const taskId of position) {
-        // A join that hasn't collected every one of its incoming branches
-        // yet just waits in place this step, instead of racing ahead on
-        // whichever branch happened to arrive first. A "bypass" entry
-        // (a loop-back re-entry) always counts as satisfied.
-        if (isJoinTask(taskId)) {
-          const entry = nextArrivals[taskId];
-          if (entry !== "bypass") {
-            const required = requiredArrivalsByTask.get(taskId) ?? 0;
-            const arrived = entry?.length ?? 0;
-            if (arrived < required) {
-              nextTargets.push(taskId);
-              continue;
-            }
-          }
-        }
-
-        const outs = outgoingByTask.get(taskId) ?? [];
-        if (outs.length === 0) continue; // terminal, drops out
-        const hasLabels = outs.some((o) => !!o.label);
-        let targets: string[];
-        if (hasLabels) {
-          const chosenTo = choices?.[taskId];
-          if (!chosenTo) {
-            // Decision still unresolved — cannot advance this task yet.
-            nextTargets.push(taskId);
-            continue;
-          }
-          targets = [chosenTo];
-        } else {
-          targets = outs.map((o) => o.to);
-        }
-
-        delete nextArrivals[taskId]; // this task (if it was a join) has now been left behind
-
-        targets.forEach((t) => {
-          if (isJoinTask(t)) {
-            // A loop-back into a join is a deliberate single re-entry, not
-            // a parallel contributor — it bypasses the normal arrival
-            // count entirely rather than waiting for siblings that were
-            // never going to show up again.
-            if (backEdgeKeys.has(`${taskId}::${t}`)) {
-              nextArrivals[t] = "bypass";
-            } else {
-              const arrivedFrom = nextArrivals[t];
-              const arr = arrivedFrom === "bypass" ? [] : (arrivedFrom ?? []);
-              if (!arr.includes(taskId)) {
-                nextArrivals[t] = [...arr, taskId];
-              }
-            }
-          }
-          nextTargets.push(t);
-        });
-      }
-
-      const deduped = Array.from(new Set(nextTargets));
-      const positionUnchanged = deduped.length === position.length && deduped.every((id, i) => id === position[i]);
-      const arrivalsUnchanged = JSON.stringify(nextArrivals) === JSON.stringify(joinArrivals);
-      if (deduped.length === 0 || (positionUnchanged && arrivalsUnchanged)) {
-        return;
-      }
+      if (!flowCtx) return;
+      const n = stepFlow(flowCtx, { position, joinArrivals }, choices);
+      if (!n) return;
       setHistory((h) => [...h, { position, joinArrivals }]);
-      setPosition(deduped);
-      setJoinArrivals(nextArrivals);
+      setPosition(n.position);
+      setJoinArrivals(n.joinArrivals);
     },
-    [position, joinArrivals, outgoingByTask, requiredArrivalsByTask, isJoinTask, backEdgeKeys],
+    [flowCtx, position, joinArrivals],
   );
 
   const choose = useCallback(
@@ -364,14 +304,23 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     (taskId: string) => {
       if (!tasksById.has(taskId)) return;
       if (position.length === 1 && position[0] === taskId) return;
-      setHistory((h) => [...h, { position, joinArrivals }]);
-      setPosition([taskId]);
-      // A join task jumped to directly is shown, not left waiting for
-      // branches that never ran.
-      setJoinArrivals(isJoinTask(taskId) ? { [taskId]: "bypass" } : {});
+      // Replay from the start along the main route (DESIGN_v3 §3.12) so the
+      // artifacts are where they'd be; 戻る then walks back along it.
+      const route = doc ? mainRouteTo(doc, taskId) : null;
+      if (route) {
+        const last = route[route.length - 1];
+        setHistory((h) => [...h, { position, joinArrivals, restartAfter: true }, ...route.slice(0, -1)]);
+        setPosition(last.position);
+        setJoinArrivals(last.joinArrivals);
+      } else {
+        // Unreachable from the start: show it alone.
+        setHistory((h) => [...h, { position, joinArrivals }]);
+        setPosition([taskId]);
+        setJoinArrivals(isJoinTask(taskId) ? { [taskId]: "bypass" } : {});
+      }
       setIsPlaying(false);
     },
-    [tasksById, position, joinArrivals, isJoinTask],
+    [tasksById, position, joinArrivals, isJoinTask, doc],
   );
 
   const togglePlay = useCallback(() => {
@@ -413,7 +362,12 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   // v3 artifacts: where each one is after the played path, and what the
   // current step did to them (DESIGN_v3 §3.4, §3.6).
   const artifactState = useMemo(
-    () => (doc?.artifacts?.length ? artifactStateAt(doc, [...history.map((h) => h.position), position]) : null),
+    () => {
+      if (!doc?.artifacts?.length) return null;
+      let from = 0;
+      history.forEach((h, i) => h.restartAfter && (from = i + 1));
+      return artifactStateAt(doc, [...history.slice(from).map((h) => h.position), position]);
+    },
     [doc, history, position],
   );
 

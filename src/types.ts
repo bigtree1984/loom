@@ -129,6 +129,9 @@ export interface Connection {
   from: string;
   to: string;
   label?: string;
+  /** Decision option on the main route (DESIGN_v3 §3.12): jumping to a
+   * later task assumes this way was taken. Default: the last forward option. */
+  main?: boolean;
 }
 
 /**
