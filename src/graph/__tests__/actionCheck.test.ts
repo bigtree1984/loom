@@ -56,3 +56,19 @@ describe("the built-in sample passes the checks", () => {
     }
   });
 });
+
+describe("tools", () => {
+  it("a tool in a transform is used, not used up", async () => {
+    const { artifactStateAt } = await import("../artifactState");
+    const d = normalizeLoomDocument({
+      version: 2,
+      architecture: { nodes: [{ id: "n", label: "n", type: "backend" }], edges: [] },
+      artifacts: [{ id: "m", label: "モデル", tool: true, at: "n" }, { id: "x", label: "x", at: "n" }, { id: "y", label: "y" }],
+      flow: { tasks: [{ id: "t", label: "t", description: "", mainNode: "n", inputNodes: [], outputNodes: [], actions: [{ type: "transform", artifacts: ["m", "x"], results: ["y"] }] }], connections: [] },
+    } as unknown as LoomDocumentInput);
+    const p = artifactStateAt(d, [["t"]]).places;
+    expect(p.get("m")).toEqual({ node: "n", visible: true });
+    expect(p.get("x")?.visible).toBe(false);
+    expect(p.get("y")).toEqual({ node: "n", visible: true });
+  });
+});

@@ -27,6 +27,7 @@ document; a Loom document with `//` in it will fail to parse.
     "nodes": [ /* ArchNode[] */ ],
     "edges": [ /* ArchEdge[] */ ]
   },
+  "artifacts": [ /* Artifact[] — optional, see "Artifacts and actions" */ ],
   "flow": {
     "tasks": [ /* Task[] */ ],
     "connections": [ /* Connection[] */ ]
@@ -81,6 +82,12 @@ Optional lane layout (a column is really a *lane*):
 }
 ```
 
+Choosing `type`: `human` for people; `frontend` for what people touch
+(apps, web pages, chat apps like Slack / LINE, devices and sensors);
+`backend` for servers, jobs, schedulers and outside APIs / SaaS (Stripe,
+mail delivery); `agent` for AI models and LLM services; `storage` for
+places that keep things (databases, buckets, spreadsheets, Drive).
+
 A `human` node is an ordinary node; when it has no `group`, automatic
 placement puts it in its own column, and it is marked with a person glyph.
 (`colorToken` from older documents is accepted but ignored — nodes no longer
@@ -112,6 +119,10 @@ it wins over `bidirectional`).
 }
 ```
 
+A task may instead carry `actions` (see "Artifacts and actions"); then
+`inputNodes` / `outputNodes` are derived from them (receive `from` → input,
+send `to` → output) and whatever you write there is replaced — write `[]`.
+
 `inputNodes` and `outputNodes` are required — if a task has none, write
 `[]` rather than omitting the field. (In practice a missing field is
 tolerated too: the app fills it in as `[]`, but don't rely on that when
@@ -141,6 +152,134 @@ looping back:
 { "from": "t9", "to": "t10", "label": "テスト成功:デプロイへ進む" },
 { "from": "t9", "to": "t5", "label": "テスト失敗:実装へ差し戻し" }
 ```
+
+A task's outgoing connections are either all labelled (a decision) or
+all unlabelled (a fork) — not mixed. For "decide, then do two things at
+once", put a task between them (the decision leads to it; it forks).
+A branch may simply end; branches don't have to meet again.
+
+Time-based starts ("every day at 8:30", "every minute") are a scheduler
+node whose first task `create`s a signal and `send`s it on. Describe one
+run of the process; don't draw a loop for the repetition.
+
+For a decision, you may mark one option `"main": true`. Jumping straight
+to a later task replays the flow from the start and takes the marked
+option (default: the last forward option), so artifacts end up where
+they would be.
+
+## Artifacts and actions
+
+Nodes are the *actors and places* (people, services, stores). The things
+that travel between them, get made, or get changed — files, records,
+messages, signals — are **artifacts**. Loom animates them while stepping
+through the flow, and the note export draws them on the nodes.
+
+Do not model a deliverable as a node (`structure.json`, `output.mp4`, a
+model file). Keep `storage` nodes for places (BigQuery, GCS, Google
+Drive) and make the deliverable an artifact that sits on or moves to
+them. Only make artifacts of things a later step uses or a reader needs
+to see; not every intermediate value.
+
+### Artifact
+
+```jsonc
+{ "id": "receipt", "label": "レシート画像" }                    // born in some task's action
+{ "id": "voices", "label": "音声1,013本", "at": "daiki_pc" }      // sits on that node from the start
+{ "id": "tick", "label": "8:30 の合図", "transient": true }        // signal: gone once received
+{ "id": "tts", "label": "TTSモデル", "tool": true, "at": "gpu" }  // tool: drawn attached to its node
+```
+
+An artifact never stores where it is now. Its place at each step is
+computed by replaying the actions along the flow.
+
+### Task actions
+
+```jsonc
+{
+  "id": "t3", "label": "OCRで読み取る", "description": "…",
+  "mainNode": "ocr_agent",            // the subject: every action is done by this node
+  "inputNodes": [], "outputNodes": [], // derived from actions — write []
+  "actions": [
+    { "type": "receive", "artifacts": ["receipt"], "from": "google_drive", "keep": true },
+    { "type": "create",  "results": ["text"], "label": "画像から文字を読み取る" },
+    { "type": "send",    "artifacts": ["text"], "to": "parser_agent" }
+  ]
+}
+```
+
+Actions play in order, one after another. Never name the subject in an
+action — it is always the task's `mainNode`; write only the other side
+(`from` / `to`).
+
+| `type` | `artifacts` (taken) | `results` (made) | other fields | effect |
+|---|---|---|---|---|
+| `create` | — | new ones | | born on the subject |
+| `receive` | moved | — | `from` (required), `keep` | moves from `from` to the subject |
+| `send` | moved | — | `to` (required), `keep` | moves to `to` |
+| `transform` | sources | new ones | | sources are used up; results are born on the subject |
+| `derive` | sources (stay) | new ones | | results are born; sources stay |
+| `inspect` | looked at | — | | nothing moves (a check / a judgement) |
+| `discard` | thrown away | — | | used up |
+
+Every action may also have `label`: the one-line caption shown while it
+plays. Leave it out to get a generated one ("Gemini へ 出題範囲 を渡す").
+
+Rules the replay follows (the editor's ⚠ checker uses the same ones):
+
+- **Where things must be.** `transform` / `derive` / `inspect` /
+  `discard` need their `artifacts` on the subject at that point.
+  `receive` needs them on `from`. `send` takes them from wherever they
+  are (the subject may read a record out of BigQuery and hand it on).
+- **Something made elsewhere.** `receive` of an artifact that does not
+  exist yet means the other node produced it (an external API's answer):
+  it appears on `from`, then moves. So a call to an outside service is
+  `send` (the request) + `receive` (the result) — no task on the service.
+- **`keep: true`** — the original stays where it is and a copy flies and
+  vanishes on arrival: handing over a copy (`send`), or reading from a
+  store (`receive`). What was read with `receive` + `keep` counts as in
+  hand for the rest of that task (you can `inspect` / `derive` from it).
+- **Signals.** A `transient` artifact is used up the moment it arrives
+  anywhere — on the node it is sent to, or on the subject that receives
+  it: triggers, notifications, requests. Typical: `create` it, then `send`
+  it. A signal can't be relayed: if a notification goes through Slack /
+  LINE / mail to a person, `send` it straight to the person (`"to":
+  "staff"`) and let the relay show up as the architecture edge, or make
+  the message a normal (non-transient) artifact that sits in the chat
+  until read.
+- **Looking at something elsewhere.** A person checking a screen, a job
+  reading a sheet: `receive` it with `keep: true` from where it sits,
+  then `inspect` / `derive` from it. `inspect` alone only sees what is on
+  the subject.
+- **Changing something stored elsewhere** (publish a draft, free a slot,
+  update a record): read it (`receive` + `keep`), `transform` it into the
+  new version, `send` the new version back. Or, when the store does the
+  change itself, `send` a request signal and leave the change to a task
+  whose subject is the store.
+- **Tools.** Put a `tool` artifact (a model, a library) in the
+  `artifacts` of the `derive` / `transform` that uses it: it stays put
+  (only non-tool sources are used up by `transform`) and the caption
+  reads "〜を使って".
+- **Each artifact is born once.** Don't give an artifact `at` *and* make
+  it the result of an action; don't `create` the same id twice. For
+  "the same thing, changed" (a script that gets subtitles), `transform`
+  it into a new artifact with a new label (`structure` →
+  `structure_captioned`「structure.json（字幕つき）」).
+- **Loops.** A loop-back re-runs earlier tasks when a viewer takes that
+  option, but the replay never follows loop-backs, so "born once" means
+  once along a forward pass. Making the same artifact again on the second
+  lap is fine.
+- **Edges.** Actions don't create architecture edges. Draw an edge for
+  each pair of nodes something travels between (`from` → subject,
+  subject → `to`); a moving artifact follows the edges, or flies straight
+  when there is none.
+- **Parallel branches** all run; a join task runs once every branch has
+  arrived, so its actions see what all of them brought. **At a decision**
+  only one option runs; check your artifacts make sense on the main
+  option.
+- Every id in `artifacts`, `results`, `from`, `to`, `at` must exist.
+
+Tasks without `actions` still work (v2): nodes light up from
+`inputNodes` / `outputNodes`, and no artifacts move.
 
 ## Theme (colour overrides)
 

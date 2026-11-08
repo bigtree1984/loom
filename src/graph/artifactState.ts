@@ -155,7 +155,8 @@ export function applyTask(
       case "transform":
       case "derive":
         ins.forEach((id) => {
-          if (a.type === "transform") {
+          // A tool is used, never used up (DESIGN_v3 §3.2).
+          if (a.type === "transform" && !byId.get(id)?.tool) {
             note(id, { ended: true, toNode: undefined, transformedAt: step });
             set(id, { ...place(id), visible: false });
           } else note(id, { touched: true });
