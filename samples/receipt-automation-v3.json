@@ -1,0 +1,561 @@
+{
+  "version": 2,
+  "architecture": {
+    "nodes": [
+      {
+        "id": "user",
+        "label": "従業員(提出者)",
+        "type": "human"
+      },
+      {
+        "id": "google_drive",
+        "label": "Google Drive",
+        "type": "storage",
+        "group": "stores"
+      },
+      {
+        "id": "drive_watcher",
+        "label": "Drive監視トリガー",
+        "type": "backend",
+        "group": "pipeline"
+      },
+      {
+        "id": "ocr_agent",
+        "label": "OCRエージェント",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "parser_agent",
+        "label": "店舗・金額抽出エージェント",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "item_parser_agent",
+        "label": "品目明細抽出エージェント",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "validation_agent",
+        "label": "検証エージェント",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "sheets_writer",
+        "label": "Sheets書き込みエージェント",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "google_sheets",
+        "label": "Google Sheets",
+        "type": "storage",
+        "group": "stores"
+      },
+      {
+        "id": "looker_studio",
+        "label": "Looker Studio",
+        "type": "frontend"
+      },
+      {
+        "id": "notification_service",
+        "label": "通知サービス",
+        "type": "agent",
+        "group": "pipeline"
+      },
+      {
+        "id": "reviewer",
+        "label": "経理担当者(レビュー)",
+        "type": "human"
+      }
+    ],
+    "edges": [
+      {
+        "a": "user",
+        "b": "google_drive",
+        "label": "アップロード"
+      },
+      {
+        "a": "google_drive",
+        "b": "drive_watcher"
+      },
+      {
+        "a": "drive_watcher",
+        "b": "ocr_agent"
+      },
+      {
+        "a": "ocr_agent",
+        "b": "parser_agent"
+      },
+      {
+        "a": "ocr_agent",
+        "b": "item_parser_agent"
+      },
+      {
+        "a": "parser_agent",
+        "b": "validation_agent"
+      },
+      {
+        "a": "item_parser_agent",
+        "b": "validation_agent"
+      },
+      {
+        "a": "validation_agent",
+        "b": "sheets_writer"
+      },
+      {
+        "a": "sheets_writer",
+        "b": "google_sheets"
+      },
+      {
+        "a": "google_sheets",
+        "b": "looker_studio"
+      },
+      {
+        "a": "validation_agent",
+        "b": "notification_service"
+      },
+      {
+        "a": "notification_service",
+        "b": "reviewer"
+      },
+      {
+        "a": "reviewer",
+        "b": "sheets_writer",
+        "label": "修正データ送信"
+      },
+      {
+        "a": "reviewer",
+        "b": "user",
+        "label": "再提出依頼"
+      }
+    ],
+    "groups": [
+      {
+        "id": "pipeline",
+        "label": "自動処理パイプライン"
+      },
+      {
+        "id": "stores",
+        "label": "データストア"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "receipt",
+      "label": "レシート画像"
+    },
+    {
+      "id": "new_file",
+      "label": "新規ファイルの通知",
+      "transient": true
+    },
+    {
+      "id": "ocr_start",
+      "label": "OCR開始の合図",
+      "transient": true
+    },
+    {
+      "id": "text",
+      "label": "生テキスト"
+    },
+    {
+      "id": "header",
+      "label": "店舗・日付・金額"
+    },
+    {
+      "id": "items",
+      "label": "品目明細"
+    },
+    {
+      "id": "record",
+      "label": "抽出データ"
+    },
+    {
+      "id": "score",
+      "label": "信頼度スコア"
+    },
+    {
+      "id": "review_req",
+      "label": "レビュー依頼",
+      "transient": true
+    },
+    {
+      "id": "fixed",
+      "label": "修正済みデータ"
+    },
+    {
+      "id": "resubmit",
+      "label": "再提出のお願い",
+      "transient": true
+    }
+  ],
+  "flow": {
+    "tasks": [
+      {
+        "id": "t1",
+        "label": "レシートアップロード",
+        "description": "従業員がスマホで撮影したレシート画像をGoogle Driveの指定フォルダにアップロードする。",
+        "mainNode": "user",
+        "actions": [
+          {
+            "type": "create",
+            "results": [
+              "receipt"
+            ],
+            "label": "スマホでレシートを撮る"
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "receipt"
+            ],
+            "to": "google_drive"
+          }
+        ]
+      },
+      {
+        "id": "t2",
+        "label": "新規ファイル検知",
+        "description": "Drive監視トリガーが新規ファイルを検知し、OCR処理を自動的に起動する。",
+        "mainNode": "drive_watcher",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "new_file"
+            ],
+            "from": "google_drive"
+          },
+          {
+            "type": "create",
+            "results": [
+              "ocr_start"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "ocr_start"
+            ],
+            "to": "ocr_agent"
+          }
+        ]
+      },
+      {
+        "id": "t3",
+        "label": "OCRテキスト抽出",
+        "description": "OCRエージェントがレシート画像から生テキストを抽出する。抽出後、店舗・金額の解析と品目明細の解析を並行して実行する。",
+        "mainNode": "ocr_agent",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "receipt"
+            ],
+            "from": "google_drive",
+            "keep": true
+          },
+          {
+            "type": "create",
+            "results": [
+              "text"
+            ],
+            "label": "画像から生テキストを読み取る"
+          }
+        ]
+      },
+      {
+        "id": "t4a",
+        "label": "店舗・金額抽出",
+        "description": "parser_agentがOCRテキストから店舗名・日付・合計金額を抽出する。品目明細抽出と並行実行。",
+        "mainNode": "parser_agent",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "text"
+            ],
+            "from": "ocr_agent",
+            "keep": true
+          },
+          {
+            "type": "create",
+            "results": [
+              "header"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "t4b",
+        "label": "品目明細抽出",
+        "description": "item_parser_agentがOCRテキストから購入品目の明細行を抽出する。店舗・金額抽出と並行実行。",
+        "mainNode": "item_parser_agent",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "text"
+            ],
+            "from": "ocr_agent",
+            "keep": true
+          },
+          {
+            "type": "create",
+            "results": [
+              "items"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "t5",
+        "label": "検証・信頼度判定",
+        "description": "店舗・金額抽出と品目明細抽出の両方の結果が揃った時点で、validation_agentがデータの整合性を検証し信頼度スコアを算出する。",
+        "mainNode": "validation_agent",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "header"
+            ],
+            "from": "parser_agent"
+          },
+          {
+            "type": "receive",
+            "artifacts": [
+              "items"
+            ],
+            "from": "item_parser_agent"
+          },
+          {
+            "type": "transform",
+            "artifacts": [
+              "header",
+              "items"
+            ],
+            "results": [
+              "record"
+            ],
+            "label": "突き合わせて1件の抽出データにまとめる"
+          },
+          {
+            "type": "derive",
+            "artifacts": [
+              "record"
+            ],
+            "results": [
+              "score"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "t6",
+        "label": "Sheetsへ自動登録",
+        "description": "信頼度が高いデータをsheets_writerが自動的にGoogle Sheetsへ書き込む。書き込み後、Looker Studioのダッシュボードにも反映される。",
+        "mainNode": "sheets_writer",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "record"
+            ],
+            "from": "validation_agent"
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "record"
+            ],
+            "to": "google_sheets"
+          }
+        ]
+      },
+      {
+        "id": "t7",
+        "label": "レビュー依頼通知",
+        "description": "信頼度が低いデータについて、notification_serviceが経理担当者(reviewer)にレビューを依頼する通知を送る。",
+        "mainNode": "notification_service",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "score"
+            ],
+            "from": "validation_agent",
+            "keep": true
+          },
+          {
+            "type": "create",
+            "results": [
+              "review_req"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "review_req"
+            ],
+            "to": "reviewer"
+          }
+        ]
+      },
+      {
+        "id": "t8",
+        "label": "人による確認",
+        "description": "経理担当者が抽出データとレシート画像を見比べる。誤りがあれば修正し、画像が不鮮明で判読できなければ本人に再提出を依頼する。",
+        "mainNode": "reviewer",
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "record"
+            ],
+            "from": "validation_agent"
+          },
+          {
+            "type": "receive",
+            "artifacts": [
+              "receipt"
+            ],
+            "from": "google_drive",
+            "keep": true
+          },
+          {
+            "type": "inspect",
+            "artifacts": [
+              "record"
+            ],
+            "label": "画像と見比べて確かめる"
+          }
+        ]
+      },
+      {
+        "id": "t8f",
+        "label": "データを修正",
+        "description": "経理担当者が誤りを直した修正データを、Sheets書き込みエージェントへ送る。",
+        "mainNode": "reviewer",
+        "actions": [
+          {
+            "type": "transform",
+            "artifacts": [
+              "record"
+            ],
+            "results": [
+              "fixed"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "fixed"
+            ],
+            "to": "sheets_writer"
+          }
+        ]
+      },
+      {
+        "id": "t8r",
+        "label": "再提出を依頼",
+        "description": "画像が判読できないため、従業員に撮り直しを依頼する。",
+        "mainNode": "reviewer",
+        "actions": [
+          {
+            "type": "discard",
+            "artifacts": [
+              "record"
+            ]
+          },
+          {
+            "type": "create",
+            "results": [
+              "resubmit"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "resubmit"
+            ],
+            "to": "user"
+          }
+        ]
+      },
+      {
+        "id": "t9",
+        "label": "修正データをSheetsへ登録",
+        "description": "reviewerが修正したデータをsheets_writerがGoogle Sheetsへ書き込む。書き込み後、Looker Studioのダッシュボードにも反映される。",
+        "mainNode": "sheets_writer",
+        "actions": [
+          {
+            "type": "send",
+            "artifacts": [
+              "fixed"
+            ],
+            "to": "google_sheets"
+          }
+        ]
+      }
+    ],
+    "connections": [
+      {
+        "from": "t1",
+        "to": "t2"
+      },
+      {
+        "from": "t2",
+        "to": "t3"
+      },
+      {
+        "from": "t3",
+        "to": "t4a"
+      },
+      {
+        "from": "t3",
+        "to": "t4b"
+      },
+      {
+        "from": "t4a",
+        "to": "t5"
+      },
+      {
+        "from": "t4b",
+        "to": "t5"
+      },
+      {
+        "from": "t5",
+        "to": "t6",
+        "label": "高信頼度"
+      },
+      {
+        "from": "t5",
+        "to": "t7",
+        "label": "低信頼度"
+      },
+      {
+        "from": "t7",
+        "to": "t8"
+      },
+      {
+        "from": "t8",
+        "to": "t8f",
+        "label": "訂正して登録"
+      },
+      {
+        "from": "t8",
+        "to": "t8r",
+        "label": "再提出を依頼"
+      },
+      {
+        "from": "t8f",
+        "to": "t9"
+      }
+    ]
+  }
+}
