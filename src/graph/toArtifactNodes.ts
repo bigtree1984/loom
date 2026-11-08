@@ -322,7 +322,7 @@ export function toArtifactNodes(
     let t: number | undefined;
     motions.forEach((m) => {
       if (m.ghost || m.toNode !== node || !m.path || m.path.length < 2) return;
-      const at = (clock.start(m.end ?? 0) + ACTION_MS * 0.7) / duration;
+      const at = (clock.start(m.end ?? 0) + ACTION_MS * 0.3) / duration;
       t = t === undefined ? at : Math.max(t, at);
     });
     return t;
