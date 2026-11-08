@@ -8,14 +8,16 @@ import type { NodeProps } from "@xyflow/react";
  * being born don't happen on top of each other. Offsets are relative to
  * where the chip finally sits. */
 export type ChipAnim = (
-  | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean }
+  | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number }
   | { kind: "born" }
   | { kind: "ended" }
 ) & { from: number; to: number; duration: number };
 
 function keyframesFor(a: ChipAnim): Keyframe[] {
   const { from, to } = a;
-  const span = to - from;
+  // A vanishing arrival travels within [from, fadeFrom], rests, then fades by `to`.
+  const travelTo = a.kind === "move" && a.fadeFrom !== undefined ? a.fadeFrom : to;
+  const span = travelTo - from;
   const at = (f: number) => from + span * f;
   if (a.kind === "born") {
     return [
@@ -44,6 +46,8 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
   const hops = Math.max(1, pts.length - 1);
   pts.forEach((p, i) => frames.push({ transform: t(p), opacity: 1, offset: at((0.15 + (0.85 * i) / hops) * 0.85) }));
   frames.push({ transform: "translate(0, 0)", opacity: 1, offset: at(0.85) });
+  if (a.fadeOut && a.fadeFrom !== undefined)
+    frames.push({ transform: "translate(0, 0)", opacity: 1, offset: to - (to - a.fadeFrom) * 0.25 });
   frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: to });
   frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: 1 });
   // Offsets must not decrease.

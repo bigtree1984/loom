@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LoomDocument, Task } from "../types";
 import { describeAction, stepActions } from "../graph/describeAction";
-import { ACTION_MS, GAP_MS, stepLoopTiming } from "../graph/toArtifactNodes";
+import { stepLoopTiming } from "../graph/toArtifactNodes";
 
 interface Props {
   doc: LoomDocument;
@@ -28,10 +28,23 @@ export function ActionCaption({ doc, tasks, stepKey }: Props) {
     return () => cancelAnimationFrame(id);
   }, [stepKey]);
   if (slots.length === 0) return null;
-  const { duration } = stepLoopTiming(slots.length);
-  const t = now % duration;
+  // Same rule as the chips: a keep copy or a transient signal is gone on
+  // arrival, and its action rests a moment so it can be read.
+  const byId = new Map((doc.artifacts ?? []).map((a) => [a.id, a]));
+  const holds = new Set<number>();
+  slots.forEach((slot, i) => {
+    if (
+      slot.some(
+        ({ action: a }) =>
+          (a.type === "send" || a.type === "receive") &&
+          (a.keep || (a.artifacts ?? []).some((id) => byId.get(id)?.transient)),
+      )
+    )
+      holds.add(i);
+  });
+  const clock = stepLoopTiming(slots.length, holds);
   // During the closing pause, keep showing the last action.
-  const current = Math.min(slots.length - 1, Math.floor(t / (ACTION_MS + GAP_MS)));
+  const current = clock.slotAt(now % clock.duration);
   return (
     <ol className="action-caption" aria-label="このステップのアクション">
       {slots.map((slot, i) => (

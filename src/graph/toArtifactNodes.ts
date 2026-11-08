@@ -74,8 +74,27 @@ function routed(path: string[], edges: { from: string; to: string }[]): string[]
 export const ACTION_MS = 1300;
 export const GAP_MS = 400;
 export const HOLD_MS = 1000;
-export function stepLoopTiming(actions: number) {
-  return { duration: actions * (ACTION_MS + GAP_MS) + HOLD_MS };
+/** A copy / signal that is gone on arrival rests this long at its
+ * destination first, so its label can be read. */
+export const ARRIVE_HOLD_MS = 1000;
+/** Loop clock. `holds` = action indexes containing such a vanishing
+ * arrival; those actions get ARRIVE_HOLD_MS extra. */
+export function stepLoopTiming(actions: number, holds: ReadonlySet<number> = new Set()) {
+  const starts: number[] = [];
+  let t = 0;
+  for (let i = 0; i < actions; i++) {
+    starts.push(t);
+    t += ACTION_MS + (holds.has(i) ? ARRIVE_HOLD_MS : 0) + GAP_MS;
+  }
+  const start = (i: number) => starts[i] ?? t;
+  const slotAt = (ms: number) => {
+    let cur = 0;
+    starts.forEach((s, i) => {
+      if (ms >= s) cur = i;
+    });
+    return cur;
+  };
+  return { duration: t + HOLD_MS, start, slotAt, hold: (i: number) => (holds.has(i) ? ARRIVE_HOLD_MS : 0) };
 }
 
 /** Compact mode (crowded nodes): tools become small icons in a row, and
@@ -224,12 +243,19 @@ export function toArtifactNodes(
 
   // The step's actions play one after another in a shared loop (see
   // stepLoopTiming; the action captions use the same clock).
-  const duration = stepLoopTiming(Math.max(actionCount, 1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1))).duration;
+  const holds = new Set([...motions.values()].filter((m) => m.ghost).map((m) => m.start ?? 0));
+  const clock = stepLoopTiming(Math.max(actionCount, 1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1)), holds);
+  const duration = clock.duration;
   const win = (m: ArtifactMotion) => ({
-    from: ((m.start ?? 0) * (ACTION_MS + GAP_MS)) / duration,
-    to: ((m.end ?? 0) * (ACTION_MS + GAP_MS) + ACTION_MS) / duration,
+    from: clock.start(m.start ?? 0) / duration,
+    to: (clock.start(m.end ?? 0) + ACTION_MS) / duration,
     duration,
   });
+  // Vanishing arrivals: travel in ACTION_MS, then rest before fading.
+  const ghostWin = (m: ArtifactMotion) => {
+    const w = win(m);
+    return { ...w, to: w.to + clock.hold(m.end ?? 0) / duration, fadeFrom: w.to };
+  };
 
   // Waypoints as offsets from the final spot (intermediate nodes use their
   // first chip slot).
@@ -309,7 +335,7 @@ export function toArtifactNodes(
       label: ghostExtra ? `${a?.label ?? m.id} ほか${ghostExtra}件` : (a?.label ?? m.id),
       active: true,
       color,
-      anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...win(m) },
+      anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...ghostWin(m) },
       stepKey: `${stepKey}-${gi++}`,
     };
     out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6, { w: CHIP_W, h: CHIP_H }));
