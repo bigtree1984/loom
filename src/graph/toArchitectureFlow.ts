@@ -54,6 +54,8 @@ export function toArchitectureFlow(
     const borderColor = highlight ? routeColorFor(highlight.routeIndex)[isMain ? "strong" : "light"].border : NEUTRAL_BORDER;
     const isHex = layout === "hex";
     const borderWidth = isMain ? 2 : 1;
+    // The subject of the current task: filled with its route colour.
+    const mainColor = isMain && highlight ? routeColorFor(highlight.routeIndex).strong : undefined;
     // Hex: hand the full label to CSS (2-line clamp with ellipsis) so the
     // wrap point and the "…" always agree — counting characters in JS
     // couldn't know where the browser would actually wrap.
@@ -63,6 +65,7 @@ export function toArchitectureFlow(
       shape: isHex ? "hex" : "rect",
       borderColor,
       borderWidth,
+      fill: mainColor?.bg,
       fullLabel: n.label,
       isHuman: n.type === "human",
       iconUrl: iconUrlFor(n.icon),
@@ -78,10 +81,10 @@ export function toArchitectureFlow(
         height: geometry.nodeH,
         // Hex nodes draw their own outline + fill as an SVG polygon inside
         // LoomArchNode (a CSS border would stay rectangular under clip-path).
-        background: isHex ? "transparent" : "var(--loom-panel-bg)",
+        background: isHex ? "transparent" : (mainColor?.bg ?? "var(--loom-panel-bg)"),
         border: isHex ? "none" : `${borderWidth}px solid ${borderColor}`,
         borderRadius: isHex ? 0 : 8,
-        color: "var(--loom-text-primary)",
+        color: mainColor?.text ?? "var(--loom-text-primary)",
         fontWeight: isMain ? 600 : 500,
         fontSize: 13,
         opacity: highlight || !anyActive ? 1 : 0.6,

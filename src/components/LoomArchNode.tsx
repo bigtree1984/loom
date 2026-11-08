@@ -18,6 +18,8 @@ export interface LoomArchNodeData extends Record<string, unknown> {
   shape?: "rect" | "hex";
   borderColor?: string;
   borderWidth?: number;
+  /** Fill (the current task's subject); default the panel background. */
+  fill?: string;
   /** Edit mode: show a grab point for drawing an edge out of this node. */
   connectable?: boolean;
 }
@@ -51,7 +53,7 @@ export function LoomArchNode({ data }: NodeProps) {
         <svg className="loom-arch-node-hex" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <polygon
             points={HEX_POINTS}
-            fill="var(--loom-panel-bg)"
+            fill={d.fill ?? "var(--loom-panel-bg)"}
             stroke={d.borderColor}
             strokeWidth={d.borderWidth ?? 1}
             vectorEffect="non-scaling-stroke"
