@@ -7,7 +7,7 @@ import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
-import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt, swapColumns, type EdgeDirection } from "./graph/gridEdits";
+import { addEdge, moveLane, moveNodeToCell, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt, swapColumns, type EdgeDirection } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
 import { geometryFor, pixelToCell } from "./graph/gridGeometry";
 import { applyThemeToRoot } from "./graph/theme";
@@ -192,8 +192,8 @@ function App() {
   );
 
   const handleMoveLane = useCallback(
-    (from: number, to: number) => {
-      if (loom.doc) loom.loadDocument(moveColumn(loom.doc, from, to));
+    (laneId: string, tier: 0 | 1, index: number) => {
+      if (loom.doc) loom.loadDocument(moveLane(loom.doc, laneId, tier, index));
     },
     [loom],
   );

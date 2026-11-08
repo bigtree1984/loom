@@ -1,6 +1,7 @@
 import type { ArchColumn, ArchEdge, ArchNode, LoomDocument, LoomDocumentInput, Task } from "../types";
 import { computeStableOrder, HUMAN_LANE, layoutByLanes } from "./layout";
 import { sanitizeTheme } from "./theme";
+import { hasBottomTier, laneBoxes, settleLanes } from "./lanes";
 
 /**
  * The single load boundary: accepts a v1 or v2 document (possibly missing
@@ -47,7 +48,7 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
   // dangling edge if one was.
   const liveEdges = edges.filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to));
 
-  let columns: ArchColumn[] = asArray<ArchColumn>(arch.columns ?? arch.groups).map((c) => ({ ...c }));
+  let columns: ArchColumn[] = asArray<ArchColumn>(arch.columns ?? arch.groups).map(sanitizeColumn);
   let nodes: ArchNode[];
 
   const isPlaced = (n: ArchNode) => Number.isInteger(n.col) && Number.isInteger(n.row);
@@ -55,21 +56,25 @@ export function normalizeLoomDocument(raw: LoomDocumentInput | LoomDocument): Lo
   if (!nodesIn.some(isPlaced)) {
     ({ columns, nodes } = autoLayout(nodesIn, liveEdges, columns, arch.laneOrder, tasks, connections));
   } else {
-    ({ columns, nodes } = placeStragglers(nodesIn, columns));
+    ({ columns, nodes } = placeStragglers(nodesIn, columns, Number.isInteger(arch.split) ? (arch.split as number) : undefined));
   }
 
   nodes = resolveCollisions(nodes).map(sanitizeNoteCell);
 
   const theme = sanitizeTheme(input.theme);
+  // Lanes (DESIGN_v2 §13): tiers to their auto heights, 2-wide lanes and
+  // the bottom tier packed. A plain one-tier document is left as it was.
+  const settled = settleLanes({
+    layout: arch.layout === "hex" ? "hex" : "grid",
+    columns,
+    ...(Number.isInteger(arch.split) ? { split: arch.split } : {}),
+    nodes,
+    edges: liveEdges,
+  });
   return {
     version: 2,
     ...(theme ? { theme } : {}),
-    architecture: {
-      layout: arch.layout === "hex" ? "hex" : "grid",
-      columns,
-      nodes,
-      edges: liveEdges,
-    },
+    architecture: settled,
     flow: { tasks, connections },
   };
 }
@@ -142,8 +147,14 @@ function autoLayout(
   return { columns, nodes };
 }
 
-function placeStragglers(nodesIn: ArchNode[], declared: ArchColumn[]): { columns: ArchColumn[]; nodes: ArchNode[] } {
+function placeStragglers(
+  nodesIn: ArchNode[],
+  declared: ArchColumn[],
+  split: number | undefined,
+): { columns: ArchColumn[]; nodes: ArchNode[] } {
   const columns = [...declared];
+  const boxes = laneBoxes(columns);
+  const bottomStart = hasBottomTier(columns) ? (split ?? Math.max(0, ...nodesIn.map((n) => (n.row ?? 0) + 1)) + 1) : undefined;
   const taken = new Set<string>();
   nodesIn.forEach((n) => {
     if (Number.isInteger(n.col) && Number.isInteger(n.row)) taken.add(`${n.col},${n.row}`);
@@ -151,11 +162,17 @@ function placeStragglers(nodesIn: ArchNode[], declared: ArchColumn[]): { columns
 
   const nodes = nodesIn.map((n) => {
     if (Number.isInteger(n.col) && Number.isInteger(n.row)) return stripHints(n);
-    let col = Number.isInteger(n.col) ? (n.col as number) : columns.findIndex((c) => c.id === n.group);
+    // DESIGN_v2 §13: a `group` hint names a lane — its first column, in its
+    // tier (rows from the bottom tier's start when it's a bottom lane).
+    const box = boxes.find((b) => b.id === n.group);
+    let col = Number.isInteger(n.col) ? (n.col as number) : (box?.startCol ?? -1);
     if (col < 0) {
       col = Math.max(columns.length, ...nodesIn.filter((m) => Number.isInteger(m.col)).map((m) => (m.col as number) + 1));
     }
-    let row = Number.isInteger(n.row) ? (n.row as number) : 0;
+    const base = box?.tier === 1 && bottomStart !== undefined ? bottomStart : 0;
+    let row = Number.isInteger(n.row) ? (n.row as number) : base;
+    // A top lane's first free row is at most the empty row above the bottom
+    // tier, which settleLanes then reads as the top tier growing by one.
     while (taken.has(`${col},${row}`)) row++;
     taken.add(`${col},${row}`);
     return stripHints({ ...n, col, row });
@@ -174,6 +191,11 @@ function resolveCollisions(nodes: ArchNode[]): ArchNode[] {
     if (row !== n.row) console.warn(`[loom] node "${n.id}" overlapped another node; moved to row ${row}`);
     return row === n.row ? n : { ...n, row };
   });
+}
+
+function sanitizeColumn(c: ArchColumn): ArchColumn {
+  const { width, tier, ...rest } = c;
+  return { ...rest, ...(width === 2 ? { width: 2 as const } : {}), ...(tier === "bottom" ? { tier: "bottom" as const } : {}) };
 }
 
 /** Keep a note cell only if it's a pair of non-negative integers. */

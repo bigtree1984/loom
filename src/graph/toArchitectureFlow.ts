@@ -1,6 +1,7 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { LoomDocument } from "../types";
 import { cellToPixel, columnX, geometryFor, HEADER_Y, laneTileRect, type CellGeometry } from "./gridGeometry";
+import { drawnLanes, tierRows } from "./lanes";
 import { routeColorFor } from "./routeColors";
 import { iconUrlFor } from "./iconRegistry";
 import { truncateLabel } from "./textUtils";
@@ -19,6 +20,8 @@ const NEUTRAL_EDGE = "var(--loom-neutral-border)";
 export interface LaneTile {
   /** "band" = the strip behind the column header, joining it to the tiles. */
   kind?: "band";
+  /** Lane (index in columns / header-less after them): tint parity, ids. */
+  lane: number;
   col: number;
   row: number;
   x: number;
@@ -28,11 +31,20 @@ export interface LaneTile {
 }
 
 export interface LaneHeader {
-  /** Column index. */
+  /** Lane index in `columns`. */
   col: number;
   id: string;
   label: string;
   x: number;
+  /** Header top (the bottom tier's headers sit in the row above it). */
+  y: number;
+  /** Header width (a 2-wide lane's spans both columns). */
+  w: number;
+  tier: 0 | 1;
+  /** Position among its tier's lanes. */
+  tierIndex: number;
+  tierCount: number;
+  width: 1 | 2;
 }
 
 
@@ -120,32 +132,50 @@ export function toArchitectureFlow(
     };
   });
 
-  // Column headers in hex (DESIGN_v2 §11): kept, aligned to even-row x
-  // (columnX ignores the odd-row shift). Odd rows sit half a pitch right, so
-  // a header labels the column "starting" at row 0 — readable as a lane
-  // marker, and hiding them would also hide the lane reorder buttons.
-  const laneHeaders: LaneHeader[] = architecture.columns.map((c, col) => ({
-    col,
-    id: c.id,
-    label: c.label,
-    x: columnX(col, layout),
-  }));
+  // Lanes (DESIGN_v2 §13): 1 or 2 columns wide, in the top or bottom tier.
+  // Headers in hex (§11) align to even-row x (columnX ignores the odd-row
+  // shift). The bottom tier's headers sit in the empty row above it.
+  const lanes = drawnLanes(architecture);
+  const rows = tierRows(architecture);
+  const tierStart = (t: 0 | 1) => (t === 1 && rows.bottom ? rows.bottom.start : 0);
+  const tierHeight = (t: 0 | 1) => (t === 1 && rows.bottom ? rows.bottom.height : rows.top.height);
+  const headerY = (t: 0 | 1) => cellToPixel(0, tierStart(t), layout).y + HEADER_Y;
+  const real = lanes.filter((l) => !l.virtual);
+  const laneHeaders: LaneHeader[] = real.map((l) => {
+    const same = real.filter((x) => x.tier === l.tier);
+    return {
+      col: l.index,
+      id: l.id,
+      label: l.label,
+      x: columnX(l.startCol, layout),
+      y: headerY(l.tier),
+      w: geometry.nodeW + (l.width - 1) * geometry.pitchX,
+      tier: l.tier,
+      tierIndex: same.indexOf(l),
+      tierCount: same.length,
+      width: l.width,
+    };
+  });
 
-  // Every cell from row 0 to the lowest used row, in every column that has
-  // a header or a node — empty cells included, so a column's tint is
-  // continuous rather than only showing where nodes happen to sit.
-  const colCount = Math.max(architecture.columns.length, ...architecture.nodes.map((n) => (n.col ?? 0) + 1));
-  const rowCount = Math.max(1, ...architecture.nodes.map((n) => (n.row ?? 0) + 1));
+  // Every cell of every lane over its tier's rows — empty cells included,
+  // so a lane's tint is continuous rather than only showing where nodes
+  // happen to sit. Tint alternates lane by lane within a tier.
   const tiles: LaneTile[] = [];
-  for (let col = 0; col < colCount; col++)
-    for (let row = 0; row < rowCount; row++) tiles.push({ col, row, ...laneTileRect(col, row, layout) });
-  // A flat strip from just above the header down to row 0's centre, so the
-  // header sits inside its lane's tint (it covers hex row 0's pointed top).
-  for (let col = 0; col < colCount; col++) {
-    const first = laneTileRect(col, 0, layout);
-    const top = HEADER_Y - 24;
-    tiles.push({ kind: "band", col, row: -1, x: first.x, y: top, w: first.w, h: first.y + first.h / 2 - top });
-  }
+  lanes.forEach((l) => {
+    const parity = lanes.filter((x) => x.tier === l.tier && x.startCol < l.startCol).length;
+    for (let dx = 0; dx < l.width; dx++) {
+      const col = l.startCol + dx;
+      for (let r = 0; r < tierHeight(l.tier); r++) {
+        const row = tierStart(l.tier) + r;
+        tiles.push({ lane: parity, col, row, ...laneTileRect(col, row, layout) });
+      }
+      // A flat strip from just above the header down to the tier's first
+      // row centre, so the header sits inside its lane's tint.
+      const first = laneTileRect(col, tierStart(l.tier), layout);
+      const top = headerY(l.tier) - 24;
+      tiles.push({ kind: "band", lane: parity, col, row: tierStart(l.tier) - 1, x: first.x, y: top, w: first.w, h: first.y + first.h / 2 - top });
+    }
+  });
 
   return { nodes, edges, laneHeaders, tiles, geometry };
 }

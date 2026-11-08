@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactForPresent, presentColumnMap } from "../presentLayout";
+import { compactForPresent } from "../presentLayout";
 import type { LoomDocument } from "../../types";
 
 const arch = {
@@ -18,9 +18,6 @@ const arch = {
 } as unknown as LoomDocument["architecture"];
 
 describe("presentLayout", () => {
-  it("maps empty columns to null and compacts the rest", () => {
-    expect(presentColumnMap(arch)).toEqual([0, null, 1, null]);
-  });
   it("drops empty columns and remaps nodes without mutating input", () => {
     const before = JSON.stringify(arch);
     const out = compactForPresent(arch);

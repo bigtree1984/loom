@@ -48,6 +48,25 @@ the document is opened (see "Placement").
 
 Index in `columns` = the column's position (0 = leftmost).
 
+Optional lane layout (a column is really a *lane*):
+
+```jsonc
+{ "id": "gcp", "label": "GCP", "width": 2 }          // a lane two cells wide
+{ "id": "ext", "label": "外部サービス", "tier": "bottom" } // the lower tier
+```
+
+- `width: 2` — the lane spans two grid columns; later lanes shift right.
+- `tier: "bottom"` — the diagram gets a lower tier. Each tier lists its
+  lanes left to right (in `columns` order), left-aligned, so the two tiers'
+  lane borders need not line up. A lane never spans both tiers. Each
+  tier's height follows its nodes.
+- The easiest way to use them: give nodes a `group` and leave `col`/`row`
+  out. If you do give cells together with `width`/`tier`, write them as
+  before (`col` = index in `columns`, `row` = row inside that lane); Loom
+  packs them the first time the document is opened and then stores
+  `architecture.split` (the bottom tier's first row). Don't write `split`
+  yourself.
+
 ### ArchNode
 
 ```jsonc
