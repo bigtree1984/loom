@@ -8,7 +8,7 @@ import type { NodeProps } from "@xyflow/react";
  * being born don't happen on top of each other. Offsets are relative to
  * where the chip finally sits. */
 export type ChipAnim = (
-  | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number }
+  | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number; keepStart?: boolean }
   | { kind: "born"; until?: number }
   | { kind: "ended" }
   | { kind: "collapse"; dx: number; dy: number }
@@ -61,8 +61,11 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
   const pts = a.points.length ? a.points : [{ dx: 0, dy: 0 }];
   const t = (p: { dx: number; dy: number }) => `translate(${p.dx}px, ${p.dy}px)`;
   const startOpacity = a.fadeIn ? 0 : 1;
-  const frames: Keyframe[] = [{ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: 0 }];
-  frames.push({ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: from });
+  // A copy / signal isn't there before it sets off; something real that is
+  // used up on arrival (keepStart) is.
+  const before = a.fadeOut && !a.keepStart ? 0 : startOpacity;
+  const frames: Keyframe[] = [{ transform: t(pts[0]), opacity: before, offset: 0 }];
+  frames.push({ transform: t(pts[0]), opacity: before, offset: from });
   const hops = Math.max(1, pts.length - 1);
   // Constant speed: each waypoint is reached in proportion to the distance
   // travelled so far (not per hop).

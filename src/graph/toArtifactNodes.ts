@@ -327,6 +327,19 @@ export function toArtifactNodes(
         return { dx: s.x - end.x, dy: s.y - end.y };
       });
 
+  // Slots below what the node shows at the end, one per used-on-arrival chip.
+  const arrivalsOn = new Map<string, number>();
+  const arrivalSlot = (node: string) => {
+    const k = arrivalsOn.get(node) ?? 0;
+    arrivalsOn.set(node, k + 1);
+    let shown = 0;
+    now.pos.forEach((_, id) => {
+      const a = artifacts.find((x) => x.id === id);
+      if (a && !a.tool && places.get(id)?.node === node) shown++;
+    });
+    const hasTools = artifacts.some((x) => x.tool && places.get(x.id)?.visible && places.get(x.id)?.node === node);
+    return chipSlot(nodePos.get(node)!, g, shown + k + (hasTools ? 0.7 : 0));
+  };
   const out: Node[] = [];
   artifacts.forEach((a) => {
     const p = places.get(a.id);
@@ -336,11 +349,25 @@ export function toArtifactNodes(
     if (now.collapsed.has(a.id) || now.groupedInto.has(a.id)) return; // inside a +N / group chip
     const m = motions.get(a.id);
     const icon = now.icon.has(a.id);
-    const slot = now.pos.get(a.id) ?? (a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
+    // Brought here and used up in the same step (received, then merged by
+    // a transform): it lands on its own free slot, rests, then fades.
+    const usedOnArrival = !!(m?.path && m.path.length > 1 && !p.visible && m.ended && !a.tool);
+    const slot = now.pos.get(a.id) ?? (usedOnArrival ? arrivalSlot(p.node) : a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
     let anim: ChipAnim | undefined;
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
-    if (m?.path && m.path.length > 1 && p.visible)
+    if (usedOnArrival && m?.path)
+      anim = {
+        kind: "move",
+        points: pointsFor(m.path, slot, prev?.pos.get(a.id)),
+        fadeOut: true,
+        keepStart: true,
+        from: clock.start(m.start ?? 0) / duration,
+        fadeFrom: (clock.start(m.start ?? 0) + clock.ms(m.start ?? 0)) / duration,
+        to: (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0) * 0.5) / duration,
+        duration,
+      };
+    else if (m?.path && m.path.length > 1 && p.visible)
       anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? bornSpot(m) : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
     // Born, then sent off as a signal in the same step: appears, then is
     // gone the moment its copy sets off.
