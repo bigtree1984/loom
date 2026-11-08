@@ -23,7 +23,7 @@ import { ControlBar } from "./components/ControlBar";
 import { TaskDetailPanel } from "./components/TaskDetailPanel";
 import { JsonUploader } from "./components/JsonUploader";
 import { NodeEditorModal } from "./components/NodeEditorModal";
-import { TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
+import { SINGLE_PICK, TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
 import { TaskEditPanel } from "./components/TaskEditPanel";
 import { ArtifactListPanel } from "./components/ArtifactListPanel";
 import { tasksWithIssues } from "./graph/actionCheck";
@@ -50,6 +50,8 @@ const PICK_LABEL: Record<PickTarget, string> = {
   output: "出力ノード",
   prev: "前タスク",
   next: "後ろタスク",
+  from: "受け取り元のノード",
+  to: "渡し先のノード",
 };
 
 interface PickState {
@@ -101,8 +103,8 @@ function App() {
   const togglePick = useCallback((id: string) => {
     setPick((p) => {
       if (!p) return p;
-      // 軸ノード is a single choice: one click picks it and finishes.
-      if (p.target === "main") {
+      // 軸ノード / action の相手: a single choice, one click picks and finishes.
+      if (SINGLE_PICK.has(p.target)) {
         p.apply([id]);
         return null;
       }
@@ -115,7 +117,7 @@ function App() {
       return null;
     });
   }, []);
-  const pickingArch = pick && (pick.target === "main" || pick.target === "input" || pick.target === "output");
+  const pickingArch = pick && pick.target !== "prev" && pick.target !== "next";
   const pickingFlow = pick && (pick.target === "prev" || pick.target === "next");
   const pickedSet = useMemo(() => new Set(pick?.selected ?? []), [pick]);
   useEffect(() => {
@@ -532,6 +534,7 @@ function App() {
             onEdit={loom.editDocument}
             onClose={() => setPanelTask(null)}
             onOpenDetails={() => setEditor({ kind: "task", id: panelTask })}
+            onPick={startPick}
           />
         )}
       </div>
@@ -563,10 +566,10 @@ function App() {
         <div className="pick-banner" role="status">
           <span>
             {PICK_LABEL[pick.target]}を選択中
-            {pick.target !== "main" && `(${pick.selected.length}件)`} —{" "}
+            {!SINGLE_PICK.has(pick.target) && `(${pick.selected.length}件)`} —{" "}
             {pickingArch ? "アーキテクチャ図のノード" : "フロー図のタスク"}をクリック
           </span>
-          {pick.target !== "main" && (
+          {!SINGLE_PICK.has(pick.target) && (
             <button className="control-choice forward" onClick={finishPick}>
               完了
             </button>

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { ActionType, Artifact, LoomDocument, Task, TaskAction } from "../types";
+import type { PickTarget } from "./TaskEditorModal";
 import { nextId } from "../graph/ids";
 import { describeAction } from "../graph/describeAction";
 import {
@@ -35,9 +36,11 @@ interface Props {
   onClose: () => void;
   /** Opens the full dialog (connections between tasks). */
   onOpenDetails: () => void;
+  /** Pick a node by clicking the architecture diagram. */
+  onPick?: (target: PickTarget, current: string[], apply: (ids: string[]) => void) => void;
 }
 
-export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails }: Props) {
+export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails, onPick }: Props) {
   const task = doc.flow.tasks.find((t) => t.id === taskId);
   const [adding, setAdding] = useState(false);
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
@@ -87,7 +90,10 @@ export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails }: P
           <textarea rows={2} value={task.description ?? ""} onChange={(e) => setTask({ description: e.target.value }, `${taskId}:desc`)} />
         </label>
         <label className="te-field">
-          <span>軸のノード</span>
+          <span className="te-field-head">
+            軸のノード
+            {onPick && <PickButton onClick={() => onPick("main", [task.mainNode], (ids) => ids[0] && setTask({ mainNode: ids[0] }))} />}
+          </span>
           <select value={task.mainNode} onChange={(e) => setTask({ mainNode: e.target.value })}>
             {doc.architecture.nodes.map((n) => (
               <option key={n.id} value={n.id}>
@@ -107,6 +113,7 @@ export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails }: P
               index={i}
               action={a}
               onChange={(next, key, arts) => setAction(i, next, key, arts)}
+              onPick={onPick}
               onDelete={() => setActions(actions.filter((_, j) => j !== i))}
               dragState={drag}
               onDragStart={() => setDrag({ from: i, over: i })}
@@ -147,7 +154,16 @@ export function TaskEditPanel({ doc, taskId, onEdit, onClose, onOpenDetails }: P
   );
 }
 
+function PickButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="te-pick" onClick={onClick} title="アーキテクチャ図のノードをクリックして選ぶ">
+      図から選ぶ
+    </button>
+  );
+}
+
 interface RowProps {
+  onPick?: Props["onPick"];
   doc: LoomDocument;
   task: Task;
   index: number;
@@ -161,7 +177,7 @@ interface RowProps {
   onDragEnd: () => void;
 }
 
-function ActionRow({ doc, task, index, action: a, onChange, onDelete, dragState, onDragStart, onDragOver, onDrop, onDragEnd }: RowProps) {
+function ActionRow({ doc, task, index, action: a, onChange, onPick, onDelete, dragState, onDragStart, onDragOver, onDrop, onDragEnd }: RowProps) {
   const rowRef = useRef<HTMLLIElement>(null);
   const places = useMemo(() => placesBeforeAction(doc, task.id, index), [doc, task.id, index]);
   const issues = useMemo(() => actionIssues(doc, task.id, index, places), [doc, task.id, index, places]);
@@ -232,7 +248,13 @@ function ActionRow({ doc, task, index, action: a, onChange, onDelete, dragState,
       </div>
 
       {a.type === "receive" && (
-        <NodeSelect label="受け取り元" value={a.from} nodes={others} onChange={(from) => onChange({ ...a, from })} />
+        <NodeSelect
+          label="受け取り元"
+          value={a.from}
+          nodes={others}
+          onChange={(from) => onChange({ ...a, from })}
+          onPick={onPick && (() => onPick("from", a.from ? [a.from] : [], (ids) => ids[0] && onChange({ ...a, from: ids[0] })))}
+        />
       )}
       {NEEDS_ARTIFACTS.has(a.type) && (
         <ArtifactPicker
@@ -254,7 +276,15 @@ function ActionRow({ doc, task, index, action: a, onChange, onDelete, dragState,
           existingIds={artifacts.map((x) => x.id)}
         />
       )}
-      {a.type === "send" && <NodeSelect label="渡し先" value={a.to} nodes={others} onChange={(to) => onChange({ ...a, to })} />}
+      {a.type === "send" && (
+        <NodeSelect
+          label="渡し先"
+          value={a.to}
+          nodes={others}
+          onChange={(to) => onChange({ ...a, to })}
+          onPick={onPick && (() => onPick("to", a.to ? [a.to] : [], (ids) => ids[0] && onChange({ ...a, to: ids[0] })))}
+        />
+      )}
       {(a.type === "send" || a.type === "receive") && (
         <label className="te-check">
           <input type="checkbox" checked={!!a.keep} onChange={(e) => onChange({ ...a, keep: e.target.checked || undefined })} />
@@ -280,10 +310,25 @@ function ActionRow({ doc, task, index, action: a, onChange, onDelete, dragState,
   );
 }
 
-function NodeSelect({ label, value, nodes, onChange }: { label: string; value?: string; nodes: { id: string; label: string }[]; onChange: (id: string) => void }) {
+function NodeSelect({
+  label,
+  value,
+  nodes,
+  onChange,
+  onPick,
+}: {
+  label: string;
+  value?: string;
+  nodes: { id: string; label: string }[];
+  onChange: (id: string) => void;
+  onPick?: () => void;
+}) {
   return (
     <label className="te-field">
-      <span>{label}</span>
+      <span className="te-field-head">
+        {label}
+        {onPick && <PickButton onClick={onPick} />}
+      </span>
       <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
         <option value="" disabled>
           選ぶ…

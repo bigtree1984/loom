@@ -17,7 +17,9 @@ interface Props {
   hidden?: boolean;
 }
 
-export type PickTarget = "main" | "input" | "output" | "prev" | "next";
+export type PickTarget = "main" | "input" | "output" | "prev" | "next" | "from" | "to";
+/** Targets picked with one click (no 完了 button). */
+export const SINGLE_PICK: ReadonlySet<PickTarget> = new Set(["main", "from", "to"]);
 
 type Direction = "incoming" | "outgoing";
 
