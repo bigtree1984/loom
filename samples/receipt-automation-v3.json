@@ -136,6 +136,16 @@
         "a": "google_drive",
         "b": "ocr_agent",
         "label": "画像を読む"
+      },
+      {
+        "a": "google_drive",
+        "b": "reviewer",
+        "label": "画像を見る"
+      },
+      {
+        "a": "validation_agent",
+        "b": "reviewer",
+        "label": "抽出データを見る"
       }
     ],
     "groups": [

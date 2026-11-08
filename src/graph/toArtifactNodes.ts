@@ -280,19 +280,6 @@ export function toArtifactNodes(
   // Where each artifact sat before this step, so a move starts from its
   // actual old spot (chip, tool band or icon) rather than a default slot.
   const prev = before ? layoutSlots(artifacts, before, nodePos, g, compact, touched, motions) : undefined;
-  // Next free chip slot on a node before this step (where an arrival lands).
-  const freeSlot = (node: string) => {
-    const pos = nodePos.get(node)!;
-    if (!prev) return chipSlot(pos, g, 0);
-    let n = 0;
-    prev.pos.forEach((_, id) => {
-      const a = artifacts.find((x) => x.id === id);
-      if (a && !a.tool && before?.get(id)?.node === node) n++;
-    });
-    if (prev.more.has(node)) n++;
-    const hasTools = artifacts.some((x) => x.tool && before?.get(x.id)?.visible && before?.get(x.id)?.node === node);
-    return chipSlot(pos, g, n + (hasTools ? 0.7 : 0));
-  };
 
   // The step's actions play one after another in a shared loop (see
   // stepLoopTiming; the action captions use the same clock).
@@ -337,6 +324,7 @@ export function toArtifactNodes(
       const a = artifacts.find((x) => x.id === id);
       if (a && !a.tool && places.get(id)?.node === node) shown++;
     });
+    if (now.more.has(node)) shown++;
     const hasTools = artifacts.some((x) => x.tool && places.get(x.id)?.visible && places.get(x.id)?.node === node);
     return chipSlot(nodePos.get(node)!, g, shown + k + (hasTools ? 0.7 : 0));
   };
@@ -456,7 +444,9 @@ export function toArtifactNodes(
     }
     const ghostExtra = compact ? (ghostGroups.get(gk) ?? 1) - 1 : 0;
     if (!nodePos.get(m.toNode)) return;
-    const end = freeSlot(m.toNode);
+    // Below everything the node shows at the end of the step, so a copy
+    // never lands on top of something that arrives for good.
+    const end = arrivalSlot(m.toNode);
     const a = artifacts.find((x) => x.id === m.id);
     const data: LoomArtifactChipData = {
       label: ghostExtra ? `${a?.label ?? m.id} ほか${ghostExtra}件` : (a?.label ?? m.id),
