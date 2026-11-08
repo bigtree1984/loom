@@ -25,19 +25,10 @@ export function flowContext(doc: LoomDocument) {
   });
   const back = findBackEdgeKeys(ids, doc.flow.connections);
   const isBack = (c: Connection) => back.has(`${c.from}::${c.to}`);
-  const required = new Map<string, number>();
-  const decisionSourceOf = (id: string) => (incoming.get(id) ?? []).find((c) => !!c.label)?.from ?? null;
-  ids.forEach((id) => {
-    const groups = new Set<string>();
-    let independent = 0;
-    (incoming.get(id) ?? []).forEach((c) => {
-      if (isBack(c)) return;
-      const d = decisionSourceOf(c.from);
-      if (d) groups.add(d);
-      else independent++;
-    });
-    required.set(id, groups.size + independent);
-  });
+  // Incoming forward edges per task; 2+ makes a join (whether it waits is
+  // decided as it runs — see joinWaiting).
+  const required = new Map(ids.map((id) => [id, (incoming.get(id) ?? []).filter((c) => !isBack(c)).length]));
+  const reaches = reachability(outgoing, isBack);
   const isJoin = (id: string) => (required.get(id) ?? 0) >= 2;
   /** Decision options in display order: loop-backs first, the main one last
    * (the last option is the default everywhere). */
@@ -48,9 +39,36 @@ export function flowContext(doc: LoomDocument) {
       .sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i)
       .map(({ o }) => o);
   const rank = (o: Connection) => (isBack(o) ? 0 : o.main ? 2 : 1);
-  return { ids, outgoing, incoming, isBack, required, isJoin, sortedOptions, root: findRootId(ids, doc.flow.connections) };
+  return { ids, outgoing, incoming, isBack, required, isJoin, reaches, sortedOptions, root: findRootId(ids, doc.flow.connections) };
 }
 export type FlowContext = ReturnType<typeof flowContext>;
+
+/** Tasks reachable from each task without loop-backs (itself included). */
+export function reachability(outgoing: Map<string, Connection[]>, isBack: (c: Connection) => boolean) {
+  const memo = new Map<string, Set<string>>();
+  const reach = (id: string): Set<string> => {
+    const hit = memo.get(id);
+    if (hit) return hit;
+    const set = new Set<string>([id]);
+    memo.set(id, set);
+    (outgoing.get(id) ?? []).forEach((c) => !isBack(c) && reach(c.to).forEach((x) => set.add(x)));
+    return set;
+  };
+  return (from: string, to: string) => reach(from).has(to);
+}
+
+/**
+ * A join waits while some other task still in play can reach it — a
+ * parallel branch that hasn't arrived yet. A decision's other options never
+ * get a task in play, so a join after either-or branches doesn't wait for
+ * them, however long the branches are (DESIGN_v3 §3.13). A loop-back
+ * re-entry ("bypass") never waits. Judged on the snapshot at the start of
+ * the step: a branch arriving during a step lets the join run the next one.
+ */
+export function joinWaiting(ctx: FlowContext, s: FlowSnapshot, id: string): boolean {
+  if (!ctx.isJoin(id) || s.joinArrivals[id] === "bypass") return false;
+  return s.position.some((t) => t !== id && ctx.reaches(t, id));
+}
 
 /** One step of the flow (the same rule as 次へ / choosing an option).
  * Returns null when nothing would change. */
@@ -58,11 +76,7 @@ export type FlowContext = ReturnType<typeof flowContext>;
  * other branches stays in `position` (to keep counting arrivals) but has
  * not started — it is neither highlighted nor replayed until it runs. */
 export function runningTasks(ctx: FlowContext, s: FlowSnapshot): string[] {
-  return s.position.filter((id) => {
-    if (!ctx.isJoin(id)) return true;
-    const e = s.joinArrivals[id];
-    return e === "bypass" || (e?.length ?? 0) >= (ctx.required.get(id) ?? 0);
-  });
+  return s.position.filter((id) => !joinWaiting(ctx, s, id));
 }
 
 export function stepFlow(ctx: FlowContext, s: FlowSnapshot, choices: Record<string, string> = {}): FlowSnapshot | null {
@@ -70,14 +84,9 @@ export function stepFlow(ctx: FlowContext, s: FlowSnapshot, choices: Record<stri
   const arrivals: JoinArrivals = {};
   Object.entries(s.joinArrivals).forEach(([k, v]) => (arrivals[k] = v === "bypass" ? "bypass" : [...v]));
   for (const id of s.position) {
-    if (ctx.isJoin(id)) {
-      // Judge against the arrivals at the start of this step: a branch that
-      // arrives during this step lets the join run in the next one, not now.
-      const e = s.joinArrivals[id];
-      if (e !== "bypass" && (e?.length ?? 0) < (ctx.required.get(id) ?? 0)) {
-        next.push(id);
-        continue;
-      }
+    if (joinWaiting(ctx, s, id)) {
+      next.push(id);
+      continue;
     }
     const outs = ctx.outgoing.get(id) ?? [];
     if (outs.length === 0) continue;
@@ -132,8 +141,8 @@ export function mainRouteTo(doc: LoomDocument, target: string, maxSteps = 500): 
   }
   let s: FlowSnapshot = { position: [ctx.root], joinArrivals: {} };
   const out = [s];
-  // First snapshot holding `target` at all: the fallback when a join never
-  // fills (two either-or branches meeting are still counted as an AND join).
+  // First snapshot holding `target` at all: a fallback should the target
+  // never get to run (e.g. a join behind a decision left unresolved).
   let reached = -1;
   for (let i = 0; i < maxSteps; i++) {
     if (runningTasks(ctx, s).includes(target)) return out;

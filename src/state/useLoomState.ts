@@ -3,7 +3,7 @@ import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
 import { artifactStateAt } from "../graph/artifactState";
-import { flowContext, mainRouteTo, runningTasks, stepFlow } from "../graph/mainRoute";
+import { flowContext, joinWaiting, mainRouteTo, runningTasks, stepFlow } from "../graph/mainRoute";
 
 export type { NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
 import { addIoHighlights, type NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
@@ -65,16 +65,6 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     return map;
   }, [doc]);
 
-  const incomingByTask = useMemo(() => {
-    const map = new Map<string, Connection[]>();
-    doc?.flow.connections.forEach((c) => {
-      const list = map.get(c.to) ?? [];
-      list.push(c);
-      map.set(c.to, list);
-    });
-    return map;
-  }, [doc]);
-
   // Cycle-forming connections (loop-backs, e.g. a rejection routing back
   // to an earlier task) — needed below to keep them out of join-arrival
   // accounting, and again later to sort/mark decision options.
@@ -83,56 +73,23 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     return findBackEdgeKeys(doc.flow.tasks.map((t) => t.id), doc.flow.connections);
   }, [doc]);
 
-  // How many arrivals a task actually needs before it can proceed. Raw
-  // incoming-edge count over-counts in two ways:
-  //  - t4a in the sample has an edge from both t3a and t3b, but those are
-  //    mutually-exclusive alternatives of the SAME decision (t2), not two
-  //    parallel branches that must both complete — only one of them will
-  //    ever fire, so 1 arrival suffices. A predecessor only adds an
-  //    independent requirement when it's reached by a plain (unlabeled/
-  //    fork) edge; predecessors reached via the same decision's labeled
-  //    edges collapse into a single shared requirement.
-  //  - a loop-back (e.g. t7 "差し戻し" back to t5) is a deliberate re-entry,
-  //    not a parallel contributor, so it's excluded entirely — see the
-  //    "bypass" handling in advance() below for how it's actually let in.
-  const requiredArrivalsByTask = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!doc) return map;
-    const decisionSourceOf = (taskId: string): string | null => {
-      const labeledIncoming = (incomingByTask.get(taskId) ?? []).find((c) => !!c.label);
-      return labeledIncoming ? labeledIncoming.from : null;
-    };
-    doc.flow.tasks.forEach((t) => {
-      const decisionGroups = new Set<string>();
-      let independent = 0;
-      (incomingByTask.get(t.id) ?? []).forEach((c) => {
-        if (backEdgeKeys.has(`${c.from}::${c.to}`)) return;
-        const decisionSource = decisionSourceOf(c.from);
-        if (decisionSource) decisionGroups.add(decisionSource);
-        else independent++;
-      });
-      map.set(t.id, decisionGroups.size + independent);
-    });
-    return map;
-  }, [doc, incomingByTask, backEdgeKeys]);
+  // Joins: a task with 2+ forward incoming edges. Whether it waits is
+  // decided as the flow runs (graph/mainRoute.ts joinWaiting): while another
+  // task in play can still reach it. Either-or branches of a decision never
+  // both get a task in play, so a join after them doesn't wait; loop-backs
+  // re-enter via "bypass" (see advance()).
+  const joinCtx = useMemo(() => (doc ? flowContext(doc) : null), [doc]);
+  const requiredArrivalsByTask = useMemo(() => joinCtx?.required ?? new Map<string, number>(), [joinCtx]);
 
-  /** A task that genuinely needs 2+ independent arrivals is a join — it
-   * must wait for all of them before it can advance any further. */
+  /** A task with 2+ forward incoming edges (it may wait — joinWaiting). */
   const isJoinTask = useCallback(
     (taskId: string) => (requiredArrivalsByTask.get(taskId) ?? 0) >= 2,
     [requiredArrivalsByTask],
   );
 
   const isWaitingJoin = useCallback(
-    (taskId: string) => {
-      if (!isJoinTask(taskId)) return false;
-      const entry = joinArrivals[taskId];
-      if (entry === "bypass") return false;
-      const required = requiredArrivalsByTask.get(taskId) ?? 0;
-      const arrived = entry?.length ?? 0;
-      return arrived < required;
-    },
-    [isJoinTask, requiredArrivalsByTask, joinArrivals],
+    (taskId: string) => !!joinCtx && joinWaiting(joinCtx, { position, joinArrivals }, taskId),
+    [joinCtx, position, joinArrivals],
   );
 
   const resetTo = useCallback((rootId: string) => {

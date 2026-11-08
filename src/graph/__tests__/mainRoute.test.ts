@@ -83,3 +83,56 @@ describe("parallel branches of different lengths", () => {
     expect(artifactStateAt(uneven, steps).places.get("caption")).toEqual({ node: "app", visible: true });
   });
 });
+
+describe("joins after a decision (either-or branches)", () => {
+  const mk = (connections: { from: string; to: string; label?: string; main?: boolean }[], ids: string[]) =>
+    normalizeLoomDocument({
+      version: 2,
+      architecture: { nodes: [{ id: "n", label: "n", type: "backend" }], edges: [] },
+      flow: { tasks: ids.map((id) => ({ id, label: id, description: "", mainNode: "n", inputNodes: [], outputNodes: [] })), connections },
+    } as unknown as LoomDocumentInput);
+  const play = (d: LoomDocument, choices: Record<string, string>) => {
+    const ctx = flowContext(d);
+    let s: FlowSnapshot = { position: [ctx.root], joinArrivals: {} };
+    const steps: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      steps.push(runningTasks(ctx, s).join("+"));
+      const n = stepFlow(ctx, s, choices);
+      if (!n) break;
+      s = n;
+    }
+    return steps;
+  };
+  it("multi-task options meeting again don't wait for the option not taken", () => {
+    const d = mk(
+      [
+        { from: "s", to: "a1", label: "A" },
+        { from: "s", to: "b1", label: "B" },
+        { from: "a1", to: "a2" },
+        { from: "a2", to: "j" },
+        { from: "b1", to: "j" },
+      ],
+      ["s", "a1", "a2", "b1", "j"],
+    );
+    expect(play(d, { s: "b1" })).toEqual(["s", "b1", "j"]);
+    expect(play(d, { s: "a1" })).toEqual(["s", "a1", "a2", "j"]);
+    expect(route("j", d)).toEqual(["s", "b1", "j"]);
+  });
+  it("an uneven parallel fork inside one option still waits for its longer branch", () => {
+    const d = mk(
+      [
+        { from: "s", to: "f", label: "A" },
+        { from: "s", to: "b", label: "B" },
+        { from: "f", to: "p1" },
+        { from: "f", to: "p2" },
+        { from: "p1", to: "p1b" },
+        { from: "p1b", to: "j" },
+        { from: "p2", to: "j" },
+        { from: "b", to: "j" },
+      ],
+      ["s", "f", "p1", "p1b", "p2", "b", "j"],
+    );
+    expect(play(d, { s: "f" })).toEqual(["s", "f", "p1+p2", "p1b", "j"]);
+    expect(play(d, { s: "b" })).toEqual(["s", "b", "j"]);
+  });
+});
