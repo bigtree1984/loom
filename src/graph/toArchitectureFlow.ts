@@ -36,8 +36,10 @@ export interface LaneHeader {
   id: string;
   label: string;
   x: number;
-  /** Header top (the bottom tier's headers sit in the row above it). */
+  /** Header top (the bottom tier's headers sit below it). */
   y: number;
+  /** Top of the tier's first row (lane drag: which tier a drop is in). */
+  tierTop: number;
   /** Header width (a 2-wide lane's spans both columns). */
   w: number;
   tier: 0 | 1;
@@ -139,7 +141,13 @@ export function toArchitectureFlow(
   const rows = tierRows(architecture);
   const tierStart = (t: 0 | 1) => (t === 1 && rows.bottom ? rows.bottom.start : 0);
   const tierHeight = (t: 0 | 1) => (t === 1 && rows.bottom ? rows.bottom.height : rows.top.height);
-  const headerY = (t: 0 | 1) => cellToPixel(0, tierStart(t), layout).y + HEADER_Y;
+  // Top tier: above its first row. Bottom tier: mirrored, below its last
+  // row (芝野さん 2026-11-08), so each tier's labels face outward.
+  const below = (t: 0 | 1) => t === 1;
+  const lastRowY = (t: 0 | 1) => cellToPixel(0, tierStart(t) + tierHeight(t) - 1, layout).y;
+  const HEADER_H = 16;
+  const headerY = (t: 0 | 1) =>
+    below(t) ? lastRowY(t) + geometry.nodeH - HEADER_Y - HEADER_H : cellToPixel(0, tierStart(t), layout).y + HEADER_Y;
   const real = lanes.filter((l) => !l.virtual);
   const laneHeaders: LaneHeader[] = real.map((l) => {
     const same = real.filter((x) => x.tier === l.tier);
@@ -149,6 +157,7 @@ export function toArchitectureFlow(
       label: l.label,
       x: columnX(l.startCol, layout),
       y: headerY(l.tier),
+      tierTop: cellToPixel(0, tierStart(l.tier), layout).y,
       w: geometry.nodeW + (l.width - 1) * geometry.pitchX,
       tier: l.tier,
       tierIndex: same.indexOf(l),
@@ -169,11 +178,18 @@ export function toArchitectureFlow(
         const row = tierStart(l.tier) + r;
         tiles.push({ lane: parity, col, row, ...laneTileRect(col, row, layout) });
       }
-      // A flat strip from just above the header down to the tier's first
-      // row centre, so the header sits inside its lane's tint.
-      const first = laneTileRect(col, tierStart(l.tier), layout);
-      const top = headerY(l.tier) - 24;
-      tiles.push({ kind: "band", lane: parity, col, row: tierStart(l.tier) - 1, x: first.x, y: top, w: first.w, h: first.y + first.h / 2 - top });
+      // A flat strip joining the header to the tier's nearest row centre,
+      // so the header sits inside its lane's tint.
+      if (below(l.tier)) {
+        const last = laneTileRect(col, tierStart(l.tier) + tierHeight(l.tier) - 1, layout);
+        const top = last.y + last.h / 2;
+        const bottom = headerY(l.tier) + HEADER_H + 24;
+        tiles.push({ kind: "band", lane: parity, col, row: tierStart(l.tier) + tierHeight(l.tier), x: last.x, y: top, w: last.w, h: bottom - top });
+      } else {
+        const first = laneTileRect(col, tierStart(l.tier), layout);
+        const top = headerY(l.tier) - 24;
+        tiles.push({ kind: "band", lane: parity, col, row: tierStart(l.tier) - 1, x: first.x, y: top, w: first.w, h: first.y + first.h / 2 - top });
+      }
     }
   });
 

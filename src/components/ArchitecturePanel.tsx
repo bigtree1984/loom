@@ -94,10 +94,11 @@ export function ArchitecturePanel({
   // tier's lanes. A marker shows where it would land.
   const [laneDrag, setLaneDrag] = useState<{ from: number; tier: 0 | 1; index: number } | null>(null);
   const tierBoundary = useMemo(() => {
+    // Halfway through the empty row between the tiers.
     const bottomHeader = laneHeaders.find((h) => h.tier === 1);
-    if (bottomHeader) return bottomHeader.y - 24;
+    if (bottomHeader) return bottomHeader.tierTop - geometry.pitchY / 2;
     return Math.max(0, ...tiles.map((t) => t.y + t.h));
-  }, [laneHeaders, tiles]);
+  }, [laneHeaders, tiles, geometry]);
   const startLaneDrag = useCallback(
     (from: number, e: React.PointerEvent) => {
       if (e.button !== 0) return;
@@ -284,6 +285,7 @@ export function ArchitecturePanel({
     const tierTiles = tiles.filter((t) => (laneDrag.tier === 1 ? t.y + t.h / 2 > tierBoundary : t.y + t.h / 2 <= tierBoundary));
     const top = laneDrag.tier === 0 ? HEADER_Y - 24 : tierBoundary;
     const bottom = tierTiles.length ? Math.max(...tierTiles.map((t) => t.y + t.h)) : tierBoundary + geometry.pitchY * 1.5;
+    // (bottom tier: its bands reach down past the headers below it)
     return [
       {
         id: "lane-drop-marker",
