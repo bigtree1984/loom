@@ -71,7 +71,9 @@ export function stepFlow(ctx: FlowContext, s: FlowSnapshot, choices: Record<stri
   Object.entries(s.joinArrivals).forEach(([k, v]) => (arrivals[k] = v === "bypass" ? "bypass" : [...v]));
   for (const id of s.position) {
     if (ctx.isJoin(id)) {
-      const e = arrivals[id];
+      // Judge against the arrivals at the start of this step: a branch that
+      // arrives during this step lets the join run in the next one, not now.
+      const e = s.joinArrivals[id];
       if (e !== "bypass" && (e?.length ?? 0) < (ctx.required.get(id) ?? 0)) {
         next.push(id);
         continue;

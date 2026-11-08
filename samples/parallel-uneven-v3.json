@@ -69,12 +69,12 @@
         "b": "composer"
       },
       {
-        "a": "bg_agent",
-        "b": "composer"
-      },
-      {
         "a": "composer",
         "b": "app"
+      },
+      {
+        "a": "bg_agent",
+        "b": "reviewer"
       }
     ],
     "columns": [
@@ -187,7 +187,7 @@
       {
         "id": "t4a",
         "label": "確認",
-        "description": "確認担当が人物タグを確かめる（長い道の3つめ）。",
+        "description": "両方の道が着いてから、確認担当が人物タグと背景タグを確かめる（合流）。",
         "mainNode": "reviewer",
         "actions": [
           {
@@ -198,11 +198,19 @@
             "from": "person_agent"
           },
           {
+            "type": "receive",
+            "artifacts": [
+              "bg_tags"
+            ],
+            "from": "bg_agent"
+          },
+          {
             "type": "inspect",
             "artifacts": [
-              "person_tags_clean"
+              "person_tags_clean",
+              "bg_tags"
             ],
-            "label": "人物タグを確かめる"
+            "label": "人物タグと背景タグを確かめる"
           }
         ]
       },
@@ -232,22 +240,16 @@
       {
         "id": "t5",
         "label": "まとめる",
-        "description": "両方の道が着いてから、人物タグと背景タグを合わせて説明文を作る。",
+        "description": "確認済みの人物タグと背景タグを合わせて説明文を作る。",
         "mainNode": "composer",
         "actions": [
           {
             "type": "receive",
             "artifacts": [
-              "person_tags_clean"
-            ],
-            "from": "reviewer"
-          },
-          {
-            "type": "receive",
-            "artifacts": [
+              "person_tags_clean",
               "bg_tags"
             ],
-            "from": "bg_agent"
+            "from": "reviewer"
           },
           {
             "type": "transform",
@@ -287,11 +289,11 @@
         "to": "t4a"
       },
       {
-        "from": "t4a",
-        "to": "t5"
+        "from": "t2b",
+        "to": "t4a"
       },
       {
-        "from": "t2b",
+        "from": "t4a",
         "to": "t5"
       }
     ]
