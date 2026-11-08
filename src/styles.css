@@ -984,4 +984,15 @@
 .action-caption li.is-current .action-caption-no {
   background: var(--loom-c1);
   color: #fff;
+/* Lane editor: width / tier choices (DESIGN_v2 §13). */
+.modal-radio-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+.modal-radio-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
 }

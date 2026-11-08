@@ -83,7 +83,7 @@ interface Props {
   overlay?: React.ReactNode;
   onSwapLanes: (index: number) => void;
   /** Drag-and-drop lane reorder: column `from` ends up at index `to`. */
-  onMoveLane: (from: number, to: number) => void;
+  onMoveLane: (laneId: string, tier: 0 | 1, index: number) => void;
   onNodeDragEnd: (nodeId: string, position: { x: number; y: number }) => void;
   /** Edge drawn by dragging from one node's grab point onto another. */
   onConnectNodes: (from: string, to: string) => void;
@@ -129,43 +129,53 @@ export function ArchitecturePanel({
 }: Props) {
   const readOnly = readOnlyProp || !!picking;
   const geometry = useMemo(() => geometryFor(layout), [layout]);
-  const headerWidth = geometry.nodeW;
   const { screenToFlowPosition } = useReactFlow();
 
-  // Lane drag: `gap` is the insertion slot (0 = before the first column,
-  // n = after the last), shown as a vertical marker while dragging.
-  const [laneDrag, setLaneDrag] = useState<{ from: number; gap: number } | null>(null);
-  const laneCount = laneHeaders.length;
+  // Lane drag (DESIGN_v2 §13): drop onto the top or bottom tier (below the
+  // diagram creates the bottom tier); `index` = insertion slot among that
+  // tier's lanes. A marker shows where it would land.
+  const [laneDrag, setLaneDrag] = useState<{ from: number; tier: 0 | 1; index: number } | null>(null);
+  const tierBoundary = useMemo(() => {
+    // Halfway through the empty row between the tiers.
+    const bottomHeader = laneHeaders.find((h) => h.tier === 1);
+    if (bottomHeader) return bottomHeader.tierTop - geometry.pitchY / 2;
+    return Math.max(0, ...tiles.map((t) => t.y + t.h));
+  }, [laneHeaders, tiles, geometry]);
   const startLaneDrag = useCallback(
     (from: number, e: React.PointerEvent) => {
       if (e.button !== 0) return;
       e.preventDefault();
       const startX = e.clientX;
+      const startY = e.clientY;
+      const header = laneHeaders.find((h) => h.col === from);
+      if (!header) return;
       let active = false;
-      let gap = from;
-      const gapAt = (clientX: number, clientY: number) => {
-        const { x } = screenToFlowPosition({ x: clientX, y: clientY });
-        const g = geometry.pitchX - geometry.nodeW;
-        return Math.min(laneCount, Math.max(0, Math.round((x + g / 2) / geometry.pitchX)));
+      let target = { tier: header.tier, index: header.tierIndex };
+      const slotAt = (clientX: number, clientY: number) => {
+        const { x, y } = screenToFlowPosition({ x: clientX, y: clientY });
+        const tier: 0 | 1 = y > tierBoundary ? 1 : 0;
+        const others = laneHeaders.filter((h) => h.tier === tier && h.col !== from);
+        const index = others.filter((h) => h.x + h.w / 2 < x).length;
+        return { tier, index };
       };
       const move = (ev: PointerEvent) => {
-        if (!active && Math.abs(ev.clientX - startX) < 5) return;
+        if (!active && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
         active = true;
-        gap = gapAt(ev.clientX, ev.clientY);
-        setLaneDrag({ from, gap });
+        target = slotAt(ev.clientX, ev.clientY);
+        setLaneDrag({ from, ...target });
       };
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         setLaneDrag(null);
         if (!active) return;
-        const to = gap > from ? gap - 1 : gap;
-        if (to !== from) onMoveLane(from, to);
+        if (target.tier === header.tier && target.index === header.tierIndex) return;
+        onMoveLane(header.id, target.tier, target.index);
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     },
-    [screenToFlowPosition, geometry, laneCount, onMoveLane],
+    [screenToFlowPosition, laneHeaders, tierBoundary, onMoveLane],
   );
   const [rfNodes, setRfNodes, onNodesChangeBase] = useNodesState(nodes);
 
@@ -214,21 +224,22 @@ export function ArchitecturePanel({
   // no drag-position bookkeeping needed for them.
   const headerNodes: Node[] = useMemo(
     () =>
-      laneHeaders.map((h, i) => {
+      laneHeaders.map((h) => {
+        const prevInTier = laneHeaders.find((x) => x.tier === h.tier && x.tierIndex === h.tierIndex - 1);
         const data: LoomLaneHeaderData = {
           label: h.label,
           readOnly,
-          canMoveLeft: i > 0,
-          canMoveRight: i < laneHeaders.length - 1,
-          onMoveLeft: () => onSwapLanes(i - 1),
-          onMoveRight: () => onSwapLanes(i),
-          onDragStart: (e) => startLaneDrag(i, e),
-          dragging: laneDrag?.from === i,
+          canMoveLeft: !!prevInTier,
+          canMoveRight: h.tierIndex < h.tierCount - 1,
+          onMoveLeft: () => prevInTier && onSwapLanes(prevInTier.col),
+          onMoveRight: () => onSwapLanes(h.col),
+          onDragStart: (e) => startLaneDrag(h.col, e),
+          dragging: laneDrag?.from === h.col,
         };
         return {
           id: `lane-header-${h.col}`,
           type: "loomLaneHeader",
-          position: { x: h.x, y: HEADER_Y },
+          position: { x: h.x, y: h.y },
           data,
           draggable: false,
           selectable: false,
@@ -238,10 +249,10 @@ export function ArchitecturePanel({
           // node-level handlers — correct for a purely decorative node, but
           // this one has real interactive buttons inside it, so it must be
           // forced back on or every click passes through to the pane below.
-          style: { width: headerWidth, pointerEvents: "auto" },
+          style: { width: h.w, pointerEvents: "auto" },
         };
       }),
-    [laneHeaders, onSwapLanes, headerWidth, readOnly, startLaneDrag, laneDrag],
+    [laneHeaders, onSwapLanes, readOnly, startLaneDrag, laneDrag],
   );
 
   // Edge editing: click selects, Delete/Backspace removes, right-click flips.
@@ -308,9 +319,15 @@ export function ArchitecturePanel({
 
   const dropMarker: Node[] = useMemo(() => {
     if (!laneDrag) return [];
-    const top = HEADER_Y - 24;
-    const bottom = Math.max(0, ...tiles.map((t) => t.y + t.h));
-    const x = laneDrag.gap * geometry.pitchX - (geometry.pitchX - geometry.nodeW) / 2 - 2;
+    const gapX = geometry.pitchX - geometry.nodeW;
+    const inTier = laneHeaders.filter((h) => h.tier === laneDrag.tier && h.col !== laneDrag.from);
+    const at = inTier[laneDrag.index];
+    const last = inTier[inTier.length - 1];
+    const x = at ? at.x - gapX / 2 - 2 : last ? last.x + last.w + gapX / 2 - 2 : -gapX / 2 - 2;
+    const tierTiles = tiles.filter((t) => (laneDrag.tier === 1 ? t.y + t.h / 2 > tierBoundary : t.y + t.h / 2 <= tierBoundary));
+    const top = laneDrag.tier === 0 ? HEADER_Y - 24 : tierBoundary;
+    const bottom = tierTiles.length ? Math.max(...tierTiles.map((t) => t.y + t.h)) : tierBoundary + geometry.pitchY * 1.5;
+    // (bottom tier: its bands reach down past the headers below it)
     return [
       {
         id: "lane-drop-marker",
@@ -325,14 +342,14 @@ export function ArchitecturePanel({
         style: { width: 4, height: bottom - top, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
       },
     ];
-  }, [laneDrag, tiles, geometry]);
+  }, [laneDrag, laneHeaders, tiles, geometry, tierBoundary]);
 
   const tileNodes: Node[] = useMemo(
     () =>
       tiles.map((t) => {
-        const data: LoomLaneTileData = { shape: layout === "hex" && !t.kind ? "hex" : "rect", odd: t.col % 2 === 1 };
+        const data: LoomLaneTileData = { shape: layout === "hex" && !t.kind ? "hex" : "rect", odd: t.lane % 2 === 1 };
         return {
-          id: t.kind ? `lane-band-${t.col}` : `lane-tile-${t.col}-${t.row}`,
+          id: t.kind ? `lane-band-${t.col}-${t.row}` : `lane-tile-${t.col}-${t.row}`,
           type: "loomLaneTile",
           position: { x: t.x, y: t.y },
           data,
@@ -410,7 +427,7 @@ export function ArchitecturePanel({
             if (readOnly) return;
             if (node.type === "loomLaneHeader") {
               const col = Number(node.id.slice("lane-header-".length));
-              const header = laneHeaders[col];
+              const header = laneHeaders.find((h) => h.col === col);
               if (header) onGroupDoubleClick(header.id);
               return;
             }

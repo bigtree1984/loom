@@ -57,6 +57,10 @@ export interface ArchEdge {
 export interface ArchColumn {
   id: string;
   label: string;
+  /** Lane width in grid columns (DESIGN_v2 §13). Default 1. */
+  width?: 1 | 2;
+  /** "bottom" = the lower tier (DESIGN_v2 §13). Default: top. */
+  tier?: "top" | "bottom";
 }
 
 /**
@@ -161,6 +165,9 @@ export interface LoomDocument {
   architecture: {
     layout?: ArchLayout;
     columns: ArchColumn[];
+    /** First row of the bottom tier, when there is one (DESIGN_v2 §13).
+     * Maintained by the app; tells which tier a node's row belongs to. */
+    split?: number;
     nodes: ArchNode[];
     edges: ArchEdge[];
   };
@@ -177,6 +184,7 @@ export interface LoomDocumentInput {
   architecture?: {
     layout?: ArchLayout;
     columns?: ArchColumn[];
+    split?: number;
     groups?: ArchColumn[];
     laneOrder?: string[];
     nodes?: ArchNode[];

@@ -1,3 +1,4 @@
+import { laneIndexByNode } from "../graph/lanes";
 import { activeEdgeFlow, type NodeHighlight } from "../graph/taskFlow";
 import type { ArtifactMotion, ArtifactPlaces } from "../graph/artifactState";
 import { MAX_CHIPS, motionGroupKey } from "../graph/toArtifactNodes";
@@ -144,7 +145,9 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   // Free placement means a node's lane can't be its column; it's shown by
   // the tint of its cell instead, keyed by this legend. Only lanes that
   // actually hold a node are listed, in screen column order.
-  const usedCols = [...new Set(arch.nodes.map((n) => n.col ?? 0))].sort((a, b) => a - b);
+  // Lane of each node (DESIGN_v2 §13: no longer simply its column).
+  const laneOf = laneIndexByNode(arch);
+  const usedCols = [...new Set(arch.nodes.map((n) => laneOf.get(n.id) ?? 0))].sort((a, b) => a - b);
   const laneIndexOfCol = new Map(usedCols.map((c, i) => [c, i]));
   const laneName = (c: number) => arch.columns[c]?.label || `列${c + 1}`;
   if (usedCols.length > 1) {
@@ -183,7 +186,7 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
     const p = noteCellCenter(g, cell, diagramTop);
     centers.set(nd.id, p);
     if (usedCols.length > 1) {
-      const tint = noteLaneColor(laneIndexOfCol.get(nd.col ?? 0)!).tile;
+      const tint = noteLaneColor(laneIndexOfCol.get(laneOf.get(nd.id) ?? 0)!).tile;
       if (layout === "hex") {
         tileSvg.push(`<polygon points="${hexPoints(p.x, p.y, g.pitchX - 10, g.tileH - 12)}" fill="${tint}"/>`);
       } else {

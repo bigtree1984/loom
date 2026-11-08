@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ArchEdge, ArchNodeType, LoomDocument } from "../types";
 import { nextId } from "../graph/ids";
+import { memberships } from "../graph/lanes";
 import { Modal } from "./Modal";
 import { IconPicker } from "./IconPicker";
 
@@ -20,8 +21,10 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const [id] = useState(() => existing?.id ?? nextId("node", doc.architecture.nodes.map((x) => x.id)));
   const [label, setLabel] = useState(existing?.label ?? "");
   const [type, setType] = useState<ArchNodeType>(existing?.type ?? "agent");
-  // Column index as a string ("" = a new column at the right edge).
-  const [col, setCol] = useState(existing?.col !== undefined ? String(existing.col) : "");
+  // Lane id ("" = a new lane at the right edge). DESIGN_v2 §13: a lane is
+  // no longer simply a column index.
+  const laneOfExisting = useMemo(() => (existing ? memberships(doc.architecture).get(existing.id)?.lane : undefined), [doc, existing]);
+  const [col, setCol] = useState(laneOfExisting && !laneOfExisting.startsWith("__pad_") ? laneOfExisting : "");
   const [icon, setIcon] = useState(existing?.icon ?? "");
   const [edges, setEdges] = useState<ArchEdge[]>(
     doc.architecture.edges.filter((e) => e.from === nodeId || e.to === nodeId),
@@ -68,8 +71,13 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       type,
       // Same column keeps its cell; a new column lets normalize pick the
       // first free row there.
-      ...(col === "" ? {} : { col: Number(col) }),
-      ...(existing && existing.col === Number(col) && col !== "" ? { row: existing.row } : {}),
+      // Same lane keeps its cell; another lane lets normalize pick the
+      // first free row there (the `group` hint).
+      ...(existing && col !== "" && col === laneOfExisting
+        ? { col: existing.col, row: existing.row }
+        : col !== ""
+          ? { group: col }
+          : {}),
       icon: icon.trim() || undefined,
     };
     const otherEdges = doc.architecture.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
@@ -120,8 +128,8 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         <select value={col} onChange={(e) => setCol(e.target.value)}>
           <option value="">(右端に新しい列)</option>
           {columns.map((c, i) => (
-            <option key={c.id} value={String(i)}>
-              {c.label || `列${i + 1}`}
+            <option key={c.id} value={c.id}>
+              {(c.label || `列${i + 1}`) + (c.tier === "bottom" ? "（下段）" : "")}
             </option>
           ))}
         </select>
