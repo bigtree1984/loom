@@ -69,6 +69,8 @@ export interface LoomArtifactChipData extends Record<string, unknown> {
   toolIcon?: boolean;
   /** "+N" chip standing in for collapsed artifacts. */
   more?: boolean;
+  /** "+N": the labels folded into it (shown on hover). */
+  items?: string[];
   /** Changes every step so the animation restarts. */
   stepKey: string;
 }
@@ -97,7 +99,7 @@ export function LoomArtifactChip({ data }: NodeProps) {
   ].filter(Boolean).join(" ");
   const style = (d.color ? { "--chip-color": d.color } : {}) as React.CSSProperties;
   return (
-    <div ref={ref} className={cls} style={style} title={d.label}>
+    <div ref={ref} className={cls} style={style} title={d.items ? undefined : d.label}>
       {d.more ? null : d.tool || d.toolIcon ? (
         <svg className="loom-artifact-chip-tool" viewBox="0 0 24 24" aria-label="ツール">
           <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" />
@@ -106,6 +108,13 @@ export function LoomArtifactChip({ data }: NodeProps) {
         <span className="loom-artifact-chip-mark" aria-hidden />
       )}
       {!d.toolIcon && <span className="loom-artifact-chip-label">{d.label}</span>}
+      {d.items && (
+        <ul className="loom-artifact-more-list" aria-label="まとめて表示しているもの">
+          {d.items.map((l, i) => (
+            <li key={i}>{l}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

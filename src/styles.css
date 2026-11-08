@@ -917,6 +917,31 @@
   justify-content: center;
   font-weight: 600;
   border-style: dashed;
+  position: relative;
+  overflow: visible;
+  cursor: default;
+}
+.loom-artifact-more-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  white-space: nowrap;
+  font-weight: 400;
+  background: #fff;
+  border: 1px solid #94a09a;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  z-index: 10;
+}
+.loom-artifact-more-list li + li {
+  margin-top: 2px;
+}
+.loom-artifact-chip.is-more:hover .loom-artifact-more-list {
+  display: block;
 }
 
 /* Caption of the step's actions, over the architecture diagram. */

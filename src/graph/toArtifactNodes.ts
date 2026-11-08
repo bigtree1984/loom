@@ -117,7 +117,7 @@ interface SlotLayout {
   /** Collapsed into a node's "+N" chip (compact). */
   collapsed: Set<string>;
   /** Per node: the "+N" chip. */
-  more: Map<string, { count: number; pos: { x: number; y: number } }>;
+  more: Map<string, { count: number; labels: string[]; pos: { x: number; y: number } }>;
   /** Compact: chips merged into the chip of another artifact that the same
    * action moved / used together (member -> leader), and each leader's
    * number of extra members ("画像 ほか2件"). */
@@ -196,7 +196,7 @@ function layoutSlots(
       shown = [...chips.filter((a) => must.includes(a) || rest.slice(0, room).includes(a))];
       const hidden = chips.filter((a) => !shown.includes(a));
       hidden.forEach((a) => out.collapsed.add(a.id));
-      if (hidden.length) out.more.set(node, { count: hidden.length, pos: chipSlot(pos, g, shown.length + off) });
+      if (hidden.length) out.more.set(node, { count: hidden.length, labels: hidden.map((a) => a.label), pos: chipSlot(pos, g, shown.length + off) });
     }
     shown.forEach((a, i) => out.pos.set(a.id, chipSlot(pos, g, i + off)));
   });
@@ -302,9 +302,9 @@ export function toArtifactNodes(
   });
 
   // "+N" chips for crowded nodes (compact).
-  now.more.forEach(({ count, pos }, node) => {
-    const data: LoomArtifactChipData = { label: `+${count}`, stepKey, more: true };
-    out.push(chipNode(`artifact-more-${node}`, pos, data, 5, { w: 40, h: CHIP_H }));
+  now.more.forEach(({ count, labels, pos }, node) => {
+    const data: LoomArtifactChipData = { label: `+${count}`, stepKey, more: true, items: labels };
+    out.push(chipNode(`artifact-more-${node}`, pos, data, 7, { w: 40, h: CHIP_H }));
   });
 
   // Flying copies (keep) and transient signals: sender -> receiver along
@@ -361,6 +361,6 @@ function chipNode(
     focusable: false,
     zIndex,
     className: "loom-artifact-node",
-    style: { width: size.w, height: size.h, pointerEvents: "none", padding: 0, border: "none", background: "transparent" },
+    style: { width: size.w, height: size.h, pointerEvents: data.items ? "auto" : "none", padding: 0, border: "none", background: "transparent" },
   };
 }
