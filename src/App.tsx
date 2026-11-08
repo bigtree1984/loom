@@ -27,6 +27,7 @@ import { SINGLE_PICK, TaskEditorModal, type PickTarget } from "./components/Task
 import { TaskEditPanel } from "./components/TaskEditPanel";
 import { ArtifactListPanel } from "./components/ArtifactListPanel";
 import { NodeEditPanel } from "./components/NodeEditPanel";
+import { nextId } from "./graph/ids";
 import { tasksWithIssues } from "./graph/actionCheck";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
@@ -86,6 +87,27 @@ function App() {
     setPanelTask(null);
     setPanelNode(id);
   }, []);
+  // Adding (DESIGN_v3 §4 item 8): create a blank node / task right away and
+  // open it in the side editor; 元に戻す takes it back out.
+  const addNode = useCallback(() => {
+    const doc = loom.doc;
+    if (!doc) return;
+    const id = nextId("node", doc.architecture.nodes.map((n) => n.id));
+    loom.editDocument({ ...doc, architecture: { ...doc.architecture, nodes: [...doc.architecture.nodes, { id, label: "新しいノード", type: "agent" }] } });
+    setArtifactsOpen(false);
+    setPanelTask(null);
+    setPanelNode(id);
+  }, [loom]);
+  const addTask = useCallback(() => {
+    const doc = loom.doc;
+    if (!doc) return;
+    const id = nextId("task", doc.flow.tasks.map((t) => t.id));
+    const mainNode = doc.architecture.nodes[0]?.id ?? "";
+    loom.editDocument({ ...doc, flow: { ...doc.flow, tasks: [...doc.flow.tasks, { id, label: "新しいタスク", description: "", mainNode, inputNodes: [], outputNodes: [], actions: [] }] } });
+    setArtifactsOpen(false);
+    setPanelNode(null);
+    setPanelTask(id);
+  }, [loom]);
   const openTaskPanel = useCallback(
     (id: string) => {
       setArtifactsOpen(false);
@@ -479,7 +501,7 @@ function App() {
             onPaneClick={loom.clearPosition}
             // v3: the side editor (DESIGN_v3 §4 item 8), live with playback.
             onTaskDoubleClick={openTaskPanel}
-            onAddTask={() => setEditor({ kind: "task", id: null })}
+            onAddTask={addTask}
             readOnly={present}
             picking={
               pickingFlow
@@ -515,7 +537,7 @@ function App() {
                 onSetEdgeDirection={handleSetEdgeDirection}
                 onNodeDragEnd={handleNodeDragEnd}
                 onNodeDoubleClick={openNodePanel}
-                onAddNode={() => setEditor({ kind: "node", id: null })}
+                onAddNode={addNode}
                 onGroupDoubleClick={(id) => setEditor({ kind: "group", id })}
                 onAddGroup={() => setEditor({ kind: "group", id: null })}
                 layout={loom.doc?.architecture.layout ?? "grid"}
