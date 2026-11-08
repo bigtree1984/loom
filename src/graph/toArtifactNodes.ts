@@ -316,9 +316,46 @@ export function toArtifactNodes(
     out.push(chipNode(`artifact-${a.id}`, slot, data, p.visible ? 5 : 4, size));
   });
 
+  // When an arrival is what crowds a node: what was shown there stays until
+  // the arrival lands, then slides into the "+N" chip, which appears then.
+  const arrivalAt = (node: string) => {
+    let t: number | undefined;
+    motions.forEach((m) => {
+      if (m.ghost || m.toNode !== node || !m.path || m.path.length < 2) return;
+      const at = (clock.start(m.end ?? 0) + ACTION_MS * 0.7) / duration;
+      t = t === undefined ? at : Math.max(t, at);
+    });
+    return t;
+  };
+  const crowdedAt = new Map<string, number>();
+  artifacts.forEach((a) => {
+    if (!now.collapsed.has(a.id) || !prev || prev.collapsed.has(a.id) || prev.groupedInto.has(a.id)) return;
+    const p = places.get(a.id);
+    const from = prev.pos.get(a.id);
+    const more = p?.node ? now.more.get(p.node) : undefined;
+    if (!p?.node || !from || !more || before?.get(a.id)?.node !== p.node || prev.icon.has(a.id)) return;
+    const t = arrivalAt(p.node);
+    if (t === undefined) return;
+    crowdedAt.set(p.node, t);
+    const data: LoomArtifactChipData = {
+      label: a.label,
+      color,
+      anim: { kind: "collapse", dx: from.x - more.pos.x, dy: from.y - more.pos.y, from: t, to: Math.min(1, t + 400 / duration), duration },
+      stepKey,
+    };
+    out.push(chipNode(`artifact-${a.id}`, more.pos, data, 4, { w: CHIP_W, h: CHIP_H }));
+  });
+
   // "+N" chips for crowded nodes (compact).
   now.more.forEach(({ count, labels, pos }, node) => {
-    const data: LoomArtifactChipData = { label: `+${count}`, stepKey, more: true, items: labels };
+    const t = crowdedAt.get(node);
+    const data: LoomArtifactChipData = {
+      label: `+${count}`,
+      stepKey,
+      more: true,
+      items: labels,
+      ...(t !== undefined ? { anim: { kind: "born" as const, from: t, to: Math.min(1, t + 400 / duration), duration } } : {}),
+    };
     out.push(chipNode(`artifact-more-${node}`, pos, data, 7, { w: 40, h: CHIP_H }));
   });
 

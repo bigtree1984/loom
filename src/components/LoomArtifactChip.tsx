@@ -11,6 +11,7 @@ export type ChipAnim = (
   | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number }
   | { kind: "born" }
   | { kind: "ended" }
+  | { kind: "collapse"; dx: number; dy: number }
 ) & { from: number; to: number; duration: number };
 
 function keyframesFor(a: ChipAnim): Keyframe[] {
@@ -25,6 +26,17 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
       { opacity: 0, transform: "scale(0.6)", offset: from },
       { opacity: 1, transform: "scale(1)", offset: at(0.5) },
       { opacity: 1, transform: "scale(1)", offset: 1 },
+    ];
+  }
+  if (a.kind === "collapse") {
+    // Shown where it was until the window opens, then slides into the
+    // "+N" chip (its final spot) and fades into it.
+    const t0 = `translate(${a.dx}px, ${a.dy}px)`;
+    return [
+      { opacity: 1, transform: t0, offset: 0 },
+      { opacity: 1, transform: t0, offset: from },
+      { opacity: 0, transform: "translate(0, 0)", offset: to },
+      { opacity: 0, transform: "translate(0, 0)", offset: 1 },
     ];
   }
   if (a.kind === "ended") {
