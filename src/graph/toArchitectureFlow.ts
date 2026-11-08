@@ -22,6 +22,8 @@ export interface LaneTile {
   kind?: "band";
   /** Lane (index in columns / header-less after them): tint parity, ids. */
   lane: number;
+  /** Bottom tier: its own tint so the tier boundary reads. */
+  bottom?: boolean;
   col: number;
   row: number;
   x: number;
@@ -179,7 +181,7 @@ export function toArchitectureFlow(
       const col = l.startCol + dx;
       for (let r = 0; r < tierHeight(l.tier); r++) {
         const row = tierStart(l.tier) + r;
-        tiles.push({ lane: parity, col, row, ...laneTileRect(col, row, layout) });
+        tiles.push({ lane: parity, bottom: l.tier === 1, col, row, ...laneTileRect(col, row, layout) });
       }
       // A flat strip joining the header to the tier's nearest row centre,
       // so the header sits inside its lane's tint.
@@ -187,7 +189,7 @@ export function toArchitectureFlow(
         const last = laneTileRect(col, tierStart(l.tier) + tierHeight(l.tier) - 1, layout);
         const top = last.y + last.h / 2;
         const bottom = headerY(l.tier) + HEADER_H + 24;
-        tiles.push({ kind: "band", lane: parity, col, row: tierStart(l.tier) + tierHeight(l.tier), x: last.x, y: top, w: last.w, h: bottom - top });
+        tiles.push({ kind: "band", lane: parity, bottom: l.tier === 1, col, row: tierStart(l.tier) + tierHeight(l.tier), x: last.x, y: top, w: last.w, h: bottom - top });
       } else {
         const first = laneTileRect(col, tierStart(l.tier), layout);
         const top = headerY(l.tier) - 24;

@@ -36,18 +36,18 @@ describe("2D lanes (DESIGN_v2 §13)", () => {
   });
   it("moving a lane to the bottom tier puts it left-aligned under the top tier", () => {
     const d = reload(moveLane(base, "C", 1, 0));
-    expect(d.architecture.split).toBe(3); // top rows 0-1, header row 2
-    expect(cell(d, "c1")).toEqual([0, 3]);
+    expect(d.architecture.split).toBe(2); // top rows 0-1, bottom right below
+    expect(cell(d, "c1")).toEqual([0, 2]);
     expect(cell(d, "b1")).toEqual([1, 0]);
     expect(laneIndexByNode(d.architecture).get("c1")).toBe(2);
   });
-  it("the bottom tier follows the top tier's height", () => {
+  it("the bottom tier follows the top tier's height, with no gap row", () => {
     let d = reload(moveLane(base, "C", 1, 0));
-    // b1 dropped onto the empty row above the bottom tier: the top grows.
-    d = reload(moveNodeToCell(d, "b1", 1, 2));
-    expect(cell(d, "b1")).toEqual([1, 2]);
-    expect(d.architecture.split).toBe(4);
-    expect(cell(d, "c1")).toEqual([0, 4]);
+    // a2 dropped into the bottom tier (lane C, under c1): the top shrinks to one row.
+    d = reload(moveNodeToCell(d, "a2", 0, 3));
+    expect(d.architecture.split).toBe(1);
+    expect(cell(d, "c1")).toEqual([0, 1]);
+    expect(cell(d, "a2")).toEqual([0, 2]);
   });
   it("a 2-wide lane pushes the next lanes right; narrowing folds and pushes down", () => {
     let d = reload(setLaneWidth(base, "A", 2));
@@ -69,7 +69,7 @@ describe("2D lanes (DESIGN_v2 §13)", () => {
   it("tiers survive a save / reload", () => {
     const d = reload(moveLane(base, "C", 1, 0));
     const again = normalizeLoomDocument(JSON.parse(JSON.stringify(d)));
-    expect(cell(again, "c1")).toEqual([0, 3]);
+    expect(cell(again, "c1")).toEqual([0, 2]);
     expect(again.architecture.columns.find((c) => c.id === "C")?.tier).toBe("bottom");
   });
 });

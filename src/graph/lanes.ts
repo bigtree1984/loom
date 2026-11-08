@@ -9,8 +9,8 @@ import type { ArchColumn, ArchNode, LoomDocument } from "../types";
  *  - lanes sit in the top tier, or in the bottom tier (`tier: "bottom"`);
  *    each tier packs its lanes left to right from column 0 (left-aligned),
  *    so the two tiers' lane borders need not line up;
- *  - the top tier is rows [0, topHeight); one empty row follows (the bottom
- *    lanes' headers sit there); the bottom tier starts at `split`.
+ *  - the top tier is rows [0, topHeight); the bottom tier starts right
+ *    below it, at `split` (its lane headers are drawn under it).
  *  - each tier's height follows the nodes in it (auto).
  *
  * `architecture.split` (first row of the bottom tier) is stored only so the
@@ -63,7 +63,7 @@ export function splitRow(arch: Arch): number | undefined {
   if (!hasBottomTier(arch.columns)) return undefined;
   if (Number.isInteger(arch.split) && (arch.split as number) >= 1) return arch.split;
   // Not stored yet: below every node.
-  return Math.max(0, ...arch.nodes.map((n) => (n.row ?? 0) + 1)) + 1;
+  return Math.max(1, ...arch.nodes.map((n) => (n.row ?? 0) + 1));
 }
 
 export interface Member {
@@ -150,7 +150,7 @@ export function placeMembers(arch: Arch, columns: ArchColumn[], members: Map<str
   const topHeight = Math.max(1, ...[...local.values()].filter((l) => l.box.tier === 0).map((l) => l.dy + 1));
   // Stored whenever cells stop being lane indexes (also with only 2-wide
   // lanes), marking the document as packed — see memberships().
-  const split = bottom || usesLanes2d(columns) ? topHeight + 1 : undefined;
+  const split = bottom || usesLanes2d(columns) ? topHeight : undefined;
   const nodes: ArchNode[] = arch.nodes.map((n) => {
     const l = local.get(n.id);
     if (!l) return n;
