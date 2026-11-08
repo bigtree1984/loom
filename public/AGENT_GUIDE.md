@@ -241,14 +241,17 @@ Rules the replay follows (the editor's ⚠ checker uses the same ones):
 - **Signals.** A `transient` artifact is used up the moment it arrives
   anywhere — on the node it is sent to, or on the subject that receives
   it: triggers, notifications, requests. Typical: `create` it, then `send`
-  it. A signal can't be relayed: if a notification goes through Slack /
+  it to the node it starts (a scheduler's signal goes to the job). A signal can't be relayed: if a notification goes through Slack /
   LINE / mail to a person, `send` it straight to the person (`"to":
   "staff"`) and let the relay show up as the architecture edge, or make
   the message a normal (non-transient) artifact that sits in the chat
-  until read.
+  until read. The same goes for anything passing through a screen or a
+  channel on its way (a form sent via LINE to the server): `send` it to
+  where it ends up and draw the channel as edges.
 - **Looking at something elsewhere.** A person checking a screen, a job
-  reading a sheet: `receive` it with `keep: true` from where it sits,
-  then `inspect` / `derive` from it. `inspect` alone only sees what is on
+  reading a sheet: `receive` it with `keep: true` from the node it
+  actually sits on (the server or store that holds it — not the screen it
+  is seen through), then `inspect` / `derive` from it. `inspect` alone only sees what is on
   the subject.
 - **Changing something stored elsewhere** (publish a draft, free a slot,
   update a record): read it (`receive` + `keep`), `transform` it into the
