@@ -2,7 +2,7 @@ import type { Connection, LoomDocument } from "../types";
 import { findBackEdgeKeys, findRootId } from "./graphUtils";
 
 /**
- * Main route (DESIGN_v3 §3.12): jumping straight to a task replays the
+ * Main route (DESIGN_v3 §3.13): jumping straight to a task replays the
  * flow from the start along the main route, so the artifacts are where
  * they would be. At a decision the option leading to the target wins;
  * otherwise the one marked `main: true`, else the default (the last

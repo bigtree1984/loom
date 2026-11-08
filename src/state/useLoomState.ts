@@ -304,7 +304,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     (taskId: string) => {
       if (!tasksById.has(taskId)) return;
       if (position.length === 1 && position[0] === taskId) return;
-      // Replay from the start along the main route (DESIGN_v3 §3.12) so the
+      // Replay from the start along the main route (DESIGN_v3 §3.13) so the
       // artifacts are where they'd be; 戻る then walks back along it.
       const route = doc ? mainRouteTo(doc, taskId) : null;
       if (route) {
