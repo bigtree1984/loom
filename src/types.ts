@@ -101,6 +101,9 @@ export interface TaskAction {
   /** send / receive: the original stays where it is; a copy flies and
    * vanishes on arrival (hand over a copy / read from a source). */
   keep?: boolean;
+  /** Labels of artifacts deleted from the list while this action used
+   * them (DESIGN_v3 §4 item 8): shown as ⚠ until the action is edited. */
+  removedArtifacts?: string[];
 }
 
 export interface Task {

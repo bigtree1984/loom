@@ -24,6 +24,8 @@ import { TaskDetailPanel } from "./components/TaskDetailPanel";
 import { JsonUploader } from "./components/JsonUploader";
 import { NodeEditorModal } from "./components/NodeEditorModal";
 import { TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
+import { TaskEditPanel } from "./components/TaskEditPanel";
+import { tasksWithIssues } from "./graph/actionCheck";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
 import { useSampleAutoload } from "./hooks/useSampleAutoload";
@@ -71,6 +73,17 @@ function App() {
   // Task editor's "選択" buttons: the editor hides (staying mounted) while
   // the user clicks nodes/tasks on the diagrams.
   const [pick, setPick] = useState<PickState | null>(null);
+  // Task open in the side editor; playback follows it after every edit.
+  const [panelTask, setPanelTask] = useState<string | null>(null);
+  // After an edit (or undo, which rewinds playback) show the edited task's
+  // step again — but don't fight 次へ / 戻る between edits.
+  const jumpRef = useRef(loom.jumpTo);
+  jumpRef.current = loom.jumpTo;
+  const shownRef = useRef(loom.displayPosition);
+  shownRef.current = loom.displayPosition;
+  useEffect(() => {
+    if (panelTask && !shownRef.current.includes(panelTask)) jumpRef.current(panelTask);
+  }, [loom.doc, panelTask]);
   const startPick = useCallback(
     (target: PickTarget, current: string[], apply: (ids: string[]) => void) => setPick({ target, selected: current, apply }),
     [],
@@ -296,10 +309,12 @@ function App() {
     if (loom.doc) loom.loadDocument(resetNoteCells(loom.doc));
   }, [loom]);
 
+  // ⚠ on tasks whose actions don't fit the replay (edit mode only).
+  const taskIssues = useMemo(() => (loom.doc && mode === "edit" ? tasksWithIssues(loom.doc) : new Set<string>()), [loom.doc, mode]);
   const processFlow = useMemo(() => {
     if (!loom.doc) return { nodes: [], edges: [] };
-    return toProcessFlow(loom.doc.flow, loom.archNodesById, loom.displayPosition, loom.routeColorByTask);
-  }, [loom.doc, loom.archNodesById, loom.displayPosition, loom.routeColorByTask]);
+    return toProcessFlow(loom.doc.flow, loom.archNodesById, loom.displayPosition, loom.routeColorByTask, taskIssues);
+  }, [loom.doc, loom.archNodesById, loom.displayPosition, loom.routeColorByTask, taskIssues]);
 
   const handleLoadSample = useCallback(() => loom.loadDocument(SAMPLE), [loom]);
   // 新規作成: an empty document. No confirm — 元に戻す brings the old one back.
@@ -437,7 +452,11 @@ function App() {
             edges={processFlow.edges}
             onTaskClick={loom.jumpTo}
             onPaneClick={loom.clearPosition}
-            onTaskDoubleClick={(id) => setEditor({ kind: "task", id })}
+            onTaskDoubleClick={(id) => {
+              // v3: the side editor (DESIGN_v3 §4 item 8), live with playback.
+              setPanelTask(id);
+              loom.jumpTo(id);
+            }}
             onAddTask={() => setEditor({ kind: "task", id: null })}
             readOnly={present}
             picking={
@@ -491,6 +510,15 @@ function App() {
             ) : null}
           </TaskDetailPanel>
         </div>
+        {panelTask && !present && !note && loom.doc?.flow.tasks.some((t) => t.id === panelTask) && (
+          <TaskEditPanel
+            doc={loom.doc}
+            taskId={panelTask}
+            onEdit={loom.editDocument}
+            onClose={() => setPanelTask(null)}
+            onOpenDetails={() => setEditor({ kind: "task", id: panelTask })}
+          />
+        )}
       </div>
 
       <footer className="app-footer">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types";
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
@@ -142,9 +142,11 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     setIsPlaying(false);
   }, []);
 
+  const lastEditKey = useRef<string | null>(null);
   const loadDocument = useCallback(
     (raw: LoomDocument | LoomDocumentInput) => {
       const next = normalizeLoomDocument(raw);
+      lastEditKey.current = null;
       if (doc) {
         setDocHistory((h) => [...h, doc]);
       }
@@ -155,6 +157,21 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
     [doc, resetTo],
   );
 
+  /** Live edit from the side editor: no reset of the playback position.
+   * Edits with the same `coalesceKey` in a row (typing in one field) share
+   * one undo step. */
+  const editDocument = useCallback(
+    (raw: LoomDocument, coalesceKey?: string) => {
+      const next = normalizeLoomDocument(raw);
+      const coalesce = !!coalesceKey && coalesceKey === lastEditKey.current;
+      lastEditKey.current = coalesceKey ?? null;
+      if (doc && !coalesce) setDocHistory((h) => [...h, doc]);
+      setDocFuture([]);
+      setDoc(next);
+    },
+    [doc],
+  );
+
   const canUndoEdit = docHistory.length > 0;
   const canRedoEdit = docFuture.length > 0;
 
@@ -163,6 +180,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
    * step-through position within a single document. */
   const undoEdit = useCallback(() => {
     if (docHistory.length === 0) return;
+    lastEditKey.current = null;
     const prev = docHistory[docHistory.length - 1];
     setDocHistory((h) => h.slice(0, -1));
     if (doc) setDocFuture((f) => [...f, doc]);
@@ -173,6 +191,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   /** Re-applies a document undoEdit just stepped back from. */
   const redoEdit = useCallback(() => {
     if (docFuture.length === 0) return;
+    lastEditKey.current = null;
     const next = docFuture[docFuture.length - 1];
     setDocFuture((f) => f.slice(0, -1));
     if (doc) setDocHistory((h) => [...h, doc]);
@@ -393,6 +412,7 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   return {
     doc,
     loadDocument,
+    editDocument,
     canUndoEdit,
     undoEdit,
     canRedoEdit,

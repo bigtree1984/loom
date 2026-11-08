@@ -21,6 +21,8 @@ export function toProcessFlow(
   archNodesById: Map<string, ArchNode>,
   displayPosition: string[],
   routeColorByTask: Map<string, number>,
+  /** Tasks with an action that doesn't fit (DESIGN_v3 §4 item 8): ⚠. */
+  issues: ReadonlySet<string> = new Set(),
 ): { nodes: Node[]; edges: Edge[] } {
   const taskIds = flow.tasks.map((t) => t.id);
   const backEdgeKeys = findBackEdgeKeys(taskIds, flow.connections);
@@ -78,7 +80,7 @@ export function toProcessFlow(
     return {
       id: t.id,
       position: positions.get(t.id) ?? { x: 0, y: 0 },
-      data: { label: truncateLabel(isHumanGate ? `${t.label}(人間)` : t.label, MAX_LABEL_CHARS) },
+      data: { label: (issues.has(t.id) ? "⚠ " : "") + truncateLabel(isHumanGate ? `${t.label}(人間)` : t.label, MAX_LABEL_CHARS) },
       className: "loom-task-clickable",
       style: {
         width: NODE_WIDTH,
