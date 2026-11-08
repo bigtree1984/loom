@@ -8,9 +8,25 @@ import type { NodeProps } from "@xyflow/react";
  * being born don't happen on top of each other. Offsets are relative to
  * where the chip finally sits. */
 export type ChipAnim = (
-  | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number; keepStart?: boolean }
+  | {
+      kind: "move";
+      points: { dx: number; dy: number }[];
+      fadeOut?: boolean;
+      fadeIn?: boolean;
+      fadeFrom?: number;
+      keepStart?: boolean;
+      /** Born before it travels: grows in place over [from, to], then rests
+       * until the travel window opens. */
+      appear?: { from: number; to: number };
+      /** Used up by a transform after arriving: rests, then over [from, to]
+       * shrinks away toward (dx, dy) (the result's spot). */
+      exit?: { from: number; to: number; dx: number; dy: number };
+    }
   | { kind: "born"; until?: number }
   | { kind: "ended" }
+  /** Transformed in place: shown until `from`, then shrinks away toward
+   * (dx, dy) by `to` while the result grows in. */
+  | { kind: "morphOut"; dx: number; dy: number }
   | { kind: "collapse"; dx: number; dy: number }
 ) & { from: number; to: number; duration: number };
 
@@ -47,6 +63,14 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
       { opacity: 0, transform: "translate(0, 0)", offset: 1 },
     ];
   }
+  if (a.kind === "morphOut") {
+    return [
+      { opacity: 1, transform: "translate(0, 0) scale(1)", offset: 0 },
+      { opacity: 1, transform: "translate(0, 0) scale(1)", offset: from },
+      { opacity: 0, transform: `translate(${a.dx}px, ${a.dy}px) scale(0.6)`, offset: to },
+      { opacity: 0, transform: `translate(${a.dx}px, ${a.dy}px) scale(0.6)`, offset: 1 },
+    ];
+  }
   if (a.kind === "ended") {
     return [
       { opacity: 1, offset: 0 },
@@ -65,7 +89,13 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
   // used up on arrival (keepStart) is.
   const before = a.fadeOut && !a.keepStart ? 0 : startOpacity;
   const frames: Keyframe[] = [{ transform: t(pts[0]), opacity: before, offset: 0 }];
-  frames.push({ transform: t(pts[0]), opacity: before, offset: from });
+  if (a.appear) {
+    const s0 = `${t(pts[0])} scale(0.6)`;
+    frames[0] = { transform: s0, opacity: 0, offset: 0 };
+    frames.push({ transform: s0, opacity: 0, offset: a.appear.from });
+    frames.push({ transform: `${t(pts[0])} scale(1)`, opacity: 1, offset: a.appear.to });
+    frames.push({ transform: `${t(pts[0])} scale(1)`, opacity: 1, offset: from });
+  } else frames.push({ transform: t(pts[0]), opacity: before, offset: from });
   const hops = Math.max(1, pts.length - 1);
   // Constant speed: each waypoint is reached in proportion to the distance
   // travelled so far (not per hop).
@@ -76,6 +106,13 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
     frames.push({ transform: t(p), opacity: 1, offset: at((0.15 + 0.85 * (total ? cum[i] / total : i / hops)) * 0.85) }),
   );
   frames.push({ transform: "translate(0, 0)", opacity: 1, offset: at(0.85) });
+  if (a.exit) {
+    frames.push({ transform: "translate(0, 0) scale(1)", opacity: 1, offset: a.exit.from });
+    frames.push({ transform: `translate(${a.exit.dx}px, ${a.exit.dy}px) scale(0.6)`, opacity: 0, offset: a.exit.to });
+    frames.push({ transform: `translate(${a.exit.dx}px, ${a.exit.dy}px) scale(0.6)`, opacity: 0, offset: 1 });
+    for (let i = 1; i < frames.length; i++) frames[i].offset = Math.max(frames[i].offset as number, frames[i - 1].offset as number);
+    return frames;
+  }
   if (a.fadeOut && a.fadeFrom !== undefined)
     frames.push({ transform: "translate(0, 0)", opacity: 1, offset: to - (to - a.fadeFrom) * 0.25 });
   frames.push({ transform: "translate(0, 0)", opacity: a.fadeOut ? 0 : 1, offset: to });

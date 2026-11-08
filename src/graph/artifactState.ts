@@ -40,6 +40,11 @@ export interface ArtifactMotion {
   touchedAt?: number;
   /** Born from this artifact on the same node (derive): appears below it. */
   bornAfter?: string;
+  /** Action index of the transform that used it up / that made it. */
+  transformedAt?: number;
+  bornByTransformAt?: number;
+  /** Action index of its first move this step. */
+  movedAt?: number;
   /** Task of the current step that last handled it (route colour). */
   taskId?: string;
 }
@@ -140,7 +145,7 @@ export function applyTask(
           const prevPath = unborn
             ? [a.from as string]
             : (motions?.get(id)?.path ?? [place(id).node].filter((n): n is string => !!n));
-          note(id, { toNode: target, path: [...prevPath, target], ...(unborn ? { born: true } : {}) });
+          note(id, { toNode: target, path: [...prevPath, target], movedAt: motions?.get(id)?.movedAt ?? step, ...(unborn ? { born: true } : {}) });
           set(id, { node: target, visible: true });
         });
         break;
@@ -149,13 +154,19 @@ export function applyTask(
       case "derive":
         ins.forEach((id) => {
           if (a.type === "transform") {
-            note(id, { ended: true, toNode: undefined });
+            note(id, { ended: true, toNode: undefined, transformedAt: step });
             set(id, { ...place(id), visible: false });
           } else note(id, { touched: true });
         });
         outs.forEach((id) => {
           const src0 = a.type === "derive" ? ins.find((i) => place(i).node === subject) : undefined;
-          note(id, { born: true, toNode: subject, path: [subject], ...(src0 ? { bornAfter: src0 } : {}) });
+          note(id, {
+            born: true,
+            toNode: subject,
+            path: [subject],
+            ...(src0 ? { bornAfter: src0 } : {}),
+            ...(a.type === "transform" ? { bornByTransformAt: step } : {}),
+          });
           const src = a.type === "derive" ? ins.find((i) => place(i).node === subject) : undefined;
           set(id, { node: subject, visible: true, ...(src ? { after: src } : {}) });
         });

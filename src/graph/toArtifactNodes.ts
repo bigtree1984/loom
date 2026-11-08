@@ -105,6 +105,10 @@ export const MOVE_PX_PER_S = 220;
 export const MIN_TRAVEL_MS = 700;
 export const MAX_TRAVEL_MS = 2600;
 export const TRAVEL_FRAC = 0.72;
+/** A transform (DESIGN_v3 §4.0): before shown / swap / after shown. */
+export const TRANSFORM_MS = 2100;
+export const MORPH_FROM = 0.38;
+export const MORPH_TO = 0.62;
 
 /** Screen length of a route through these nodes (first chip slots). */
 function routeLength(path: string[], nodePos: Map<string, { x: number; y: number }>, edges: { from: string; to: string }[]) {
@@ -130,7 +134,10 @@ export function actionDurations(
     const i = m.end ?? 0;
     longest[i] = Math.max(longest[i] ?? 0, routeLength(m.path, nodePos, edges));
   });
-  return Array.from({ length: Math.max(actionCount, longest.length) }, (_, i) => {
+  const transforms = new Set<number>();
+  motions.forEach((m) => m.transformedAt !== undefined && transforms.add(m.transformedAt));
+  return Array.from({ length: Math.max(actionCount, longest.length, ...[...transforms].map((i) => i + 1)) }, (_, i) => {
+    if (transforms.has(i)) return TRANSFORM_MS;
     if (!longest[i]) return ACTION_MS;
     const travel = Math.min(MAX_TRAVEL_MS, Math.max(MIN_TRAVEL_MS, (longest[i] / MOVE_PX_PER_S) * 1000));
     return Math.round(travel / TRAVEL_FRAC);
@@ -291,6 +298,11 @@ export function toArtifactNodes(
     to: (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0)) / duration,
     duration,
   });
+  // The swap of a transform action (DESIGN_v3 §4.0).
+  const morph = (i: number) => ({
+    from: (clock.start(i) + clock.ms(i) * MORPH_FROM) / duration,
+    to: (clock.start(i) + clock.ms(i) * MORPH_TO) / duration,
+  });
   // Vanishing arrivals: travel in ACTION_MS, then rest before fading.
   const ghostWin = (m: ArtifactMotion) => {
     const w = win(m);
@@ -342,21 +354,59 @@ export function toArtifactNodes(
     const usedOnArrival = !!(m?.path && m.path.length > 1 && !p.visible && m.ended && !a.tool);
     const slot = now.pos.get(a.id) ?? (usedOnArrival ? arrivalSlot(p.node) : a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
     let anim: ChipAnim | undefined;
-    // Born and then handed on in the same step: appear at the birthplace,
-    // then travel.
-    if (usedOnArrival && m?.path)
+    // Transformed in place: the source stays on its own slot, then shrinks
+    // toward the result's spot (the node's first slot) as the result grows.
+    const transformed = m?.transformedAt !== undefined && !a.tool;
+    const resultSpot = chipSlot(pos, g, 0);
+    if (transformed && !usedOnArrival) {
+      const at = prev?.pos.get(a.id) ?? slot;
+      const mw = morph(m!.transformedAt!);
+      out.push(
+        chipNode(`artifact-${a.id}`, at, {
+          label: a.label,
+          active: true,
+          color: colorOf(m),
+          anim: { kind: "morphOut", dx: resultSpot.x - at.x, dy: resultSpot.y - at.y, from: mw.from, to: mw.to, duration },
+          stepKey,
+        }, 4, { w: CHIP_W, h: CHIP_H }),
+      );
+      return;
+    }
+    if (usedOnArrival && m?.path) {
+      const first = m.movedAt ?? m.start ?? 0;
+      const mw = transformed ? morph(m.transformedAt!) : undefined;
       anim = {
         kind: "move",
         points: pointsFor(m.path, slot, prev?.pos.get(a.id)),
         fadeOut: true,
         keepStart: true,
-        from: clock.start(m.start ?? 0) / duration,
-        fadeFrom: (clock.start(m.start ?? 0) + clock.ms(m.start ?? 0)) / duration,
-        to: (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0) * 0.5) / duration,
+        from: clock.start(first) / duration,
+        fadeFrom: (clock.start(first) + clock.ms(first)) / duration,
+        to: mw ? mw.to : (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0) * 0.5) / duration,
+        ...(mw ? { exit: { from: mw.from, to: mw.to, dx: resultSpot.x - slot.x, dy: resultSpot.y - slot.y } } : {}),
         duration,
       };
-    else if (m?.path && m.path.length > 1 && p.visible)
-      anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? bornSpot(m) : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
+    }
+    // Born and then handed on in the same step: appear at the birthplace
+    // (a transform result: as the source shrinks away), then travel.
+    else if (m?.path && m.path.length > 1 && p.visible) {
+      const first = m.movedAt ?? m.start ?? 0;
+      const appear = !m.born
+        ? undefined
+        : m.bornByTransformAt !== undefined
+          ? morph(m.bornByTransformAt)
+          : { from: clock.start(m.start ?? 0) / duration, to: (clock.start(m.start ?? 0) + clock.ms(m.start ?? 0) * 0.5) / duration };
+      anim = {
+        kind: "move",
+        points: pointsFor(m.path, slot, m.born ? (bornSpot(m) ?? (m.bornByTransformAt !== undefined && nodePos.get(m.path[0]) ? chipSlot(nodePos.get(m.path[0])!, g, 0) : undefined)) : prev?.pos.get(a.id)),
+        ...(appear ? { appear } : {}),
+        ...win(m),
+        from: clock.start(first) / duration,
+      };
+    } else if (m?.born && m.bornByTransformAt !== undefined) {
+      const mw = morph(m.bornByTransformAt);
+      anim = { kind: "born", from: mw.from, to: mw.from + 2 * (mw.to - mw.from), duration };
+    }
     // Born, then sent off as a signal in the same step: appears, then is
     // gone the moment its copy sets off.
     else if (m?.born && m.ended)
