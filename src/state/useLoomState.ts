@@ -366,10 +366,12 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
       if (position.length === 1 && position[0] === taskId) return;
       setHistory((h) => [...h, { position, joinArrivals }]);
       setPosition([taskId]);
-      setJoinArrivals({});
+      // A join task jumped to directly is shown, not left waiting for
+      // branches that never ran.
+      setJoinArrivals(isJoinTask(taskId) ? { [taskId]: "bypass" } : {});
       setIsPlaying(false);
     },
-    [tasksById, position, joinArrivals],
+    [tasksById, position, joinArrivals, isJoinTask],
   );
 
   const togglePlay = useCallback(() => {
