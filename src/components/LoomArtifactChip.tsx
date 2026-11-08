@@ -130,6 +130,8 @@ export interface LoomArtifactChipData extends Record<string, unknown> {
   /** Used up before this step: kept mounted but invisible. */
   hidden?: boolean;
   anim?: ChipAnim;
+  /** Inspected in this step: the ring pulses twice over [from, to]. */
+  inspect?: { from: number; to: number; duration: number };
   /** Drawn as a tool attached to its node. */
   tool?: boolean;
   /** Compact tool: icon only (label in the tooltip). */
@@ -155,6 +157,27 @@ export function LoomArtifactChip({ data }: NodeProps) {
     // stepKey restarts the loop on every step.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.stepKey, d.anim]);
+  // Inspect: a ring in the route colour pulses out twice while the action
+  // plays (box-shadow only, so it runs alongside a move's transform).
+  useEffect(() => {
+    const el = ref.current;
+    const w = d.inspect;
+    if (!el || !w || typeof el.animate !== "function") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const span = w.to - w.from;
+    const at = (f: number) => w.from + span * f;
+    const off = "0 0 0 0 transparent";
+    const ring = (px: number, a: number) => `0 0 0 ${px}px color-mix(in oklch, var(--chip-color, var(--loom-c1)) ${a}%, transparent)`;
+    const frames: Keyframe[] = [{ boxShadow: off, offset: 0 }, { boxShadow: off, offset: w.from }];
+    [0, 0.5].forEach((s) => {
+      frames.push({ boxShadow: ring(0, 70), offset: at(s + 0.02) });
+      frames.push({ boxShadow: ring(9, 0), offset: at(s + 0.45) });
+    });
+    frames.push({ boxShadow: off, offset: w.to }, { boxShadow: off, offset: 1 });
+    const anim = el.animate(frames, { duration: w.duration, iterations: Infinity, easing: "linear" });
+    return () => anim.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.stepKey, d.inspect?.from, d.inspect?.to, d.inspect?.duration]);
 
   const cls = [
     "loom-artifact-chip",

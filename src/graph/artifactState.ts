@@ -36,6 +36,8 @@ export interface ArtifactMotion {
    * looping animation can play the actions one after another. */
   start?: number;
   end?: number;
+  /** Action index where it was inspected (looked at without changing). */
+  inspectedAt?: number;
   /** First action that used it without moving it (for grouping chips). */
   touchedAt?: number;
   /** Born from this artifact on the same node (derive): appears below it. */
@@ -81,7 +83,7 @@ export function applyTask(
     const prev = motions.get(id);
     // Merely being used (derive source, inspect, keep original) doesn't
     // animate, so it must not stretch the chip's animation window.
-    const onlyTouched = Object.keys(m).every((k) => k === "touched");
+    const onlyTouched = Object.keys(m).every((k) => k === "touched" || k === "inspectedAt");
     if (!prev) {
       motions.set(id, {
         id,
@@ -172,7 +174,7 @@ export function applyTask(
         });
         break;
       case "inspect":
-        ins.forEach((id) => note(id, { touched: true }));
+        ins.forEach((id) => note(id, { touched: true, inspectedAt: step }));
         break;
       case "discard":
         ins.forEach((id) => {

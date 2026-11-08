@@ -444,6 +444,9 @@ export function toArtifactNodes(
       // A chip used up in this step stays visible to play its fade.
       hidden: !p.visible && !m?.ended,
       anim,
+      ...(m?.inspectedAt !== undefined
+        ? { inspect: { from: clock.start(m.inspectedAt) / duration, to: (clock.start(m.inspectedAt) + clock.ms(m.inspectedAt)) / duration, duration } }
+        : {}),
       tool: !!a.tool && !icon,
       toolIcon: icon,
       stepKey,
