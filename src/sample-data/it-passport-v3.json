@@ -120,6 +120,57 @@
       }
     ]
   },
+  "artifacts": [
+    {
+      "id": "tick",
+      "label": "出題の合図",
+      "transient": true
+    },
+    {
+      "id": "progress",
+      "label": "いまのテーマ",
+      "at": "bigquery"
+    },
+    {
+      "id": "past",
+      "label": "過去の問題",
+      "at": "bigquery"
+    },
+    {
+      "id": "range",
+      "label": "出題範囲",
+      "at": "syllabus"
+    },
+    {
+      "id": "key",
+      "label": "LINEの鍵",
+      "at": "secret_manager"
+    },
+    {
+      "id": "question",
+      "label": "4択問題と解説"
+    },
+    {
+      "id": "qlog",
+      "label": "出題の記録"
+    },
+    {
+      "id": "answer",
+      "label": "回答"
+    },
+    {
+      "id": "grade",
+      "label": "正誤と解説"
+    },
+    {
+      "id": "next",
+      "label": "次のテーマ"
+    },
+    {
+      "id": "stay",
+      "label": "同じテーマのまま"
+    }
+  ],
   "flow": {
     "tasks": [
       {
@@ -127,9 +178,20 @@
         "label": "出題の時間になる",
         "description": "平日の8:30・12:00・16:30に、Cloud Schedulerがボット本体を起動する。グループでボットに「問題」と話しかけたときも、同じ流れで出題が始まる。",
         "mainNode": "scheduler",
-        "inputNodes": [],
-        "outputNodes": [
-          "cloud_run"
+        "actions": [
+          {
+            "type": "create",
+            "results": [
+              "tick"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "tick"
+            ],
+            "to": "cloud_run"
+          }
         ]
       },
       {
@@ -137,24 +199,47 @@
         "label": "今のテーマを確認",
         "description": "BigQueryの進み具合の記録から、いま勉強中のテーマ（シラバスの中分類）を読み、シラバスからその出題範囲を取り出す。",
         "mainNode": "cloud_run",
-        "inputNodes": [
-          "bigquery",
-          "syllabus"
-        ],
-        "outputNodes": []
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "progress"
+            ],
+            "from": "bigquery",
+            "keep": true
+          },
+          {
+            "type": "receive",
+            "artifacts": [
+              "range"
+            ],
+            "from": "syllabus",
+            "keep": true
+          }
+        ]
       },
       {
         "id": "t3",
         "label": "問題を作る",
         "description": "出題範囲と、同じテーマでこれまでに出した問題をGeminiに渡し、重ならない4択問題と解説を作ってもらう。正解の位置が偏らないよう、選択肢の順番はボット側で並べ替える。",
-        "mainNode": "gemini",
-        "inputNodes": [
-          "cloud_run",
-          "syllabus",
-          "bigquery"
-        ],
-        "outputNodes": [
-          "cloud_run"
+        "mainNode": "cloud_run",
+        "actions": [
+          {
+            "type": "send",
+            "artifacts": [
+              "range",
+              "past"
+            ],
+            "to": "gemini",
+            "keep": true
+          },
+          {
+            "type": "receive",
+            "artifacts": [
+              "question"
+            ],
+            "from": "gemini"
+          }
         ]
       },
       {
@@ -162,25 +247,60 @@
         "label": "記録して出題",
         "description": "問題をBigQueryに記録してから、Secret ManagerのLINEの鍵を使って、LINE Messaging APIをコール。",
         "mainNode": "cloud_run",
-        "inputNodes": [
-          "secret_manager"
-        ],
-        "outputNodes": [
-          "bigquery",
-          "line_api",
-          "line_group"
+        "actions": [
+          {
+            "type": "derive",
+            "artifacts": [
+              "question"
+            ],
+            "results": [
+              "qlog"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "qlog"
+            ],
+            "to": "bigquery"
+          },
+          {
+            "type": "receive",
+            "artifacts": [
+              "key"
+            ],
+            "from": "secret_manager",
+            "keep": true
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "question"
+            ],
+            "to": "line_group",
+            "keep": true
+          }
         ]
       },
       {
         "id": "t5",
         "label": "回答する",
         "description": "学習者がLINEで1〜4の番号ボタンを押して回答する。",
-        "mainNode": "line_api",
-        "inputNodes": [
-          "line_group"
-        ],
-        "outputNodes": [
-          "line_group"
+        "mainNode": "line_group",
+        "actions": [
+          {
+            "type": "create",
+            "results": [
+              "answer"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "answer"
+            ],
+            "to": "cloud_run"
+          }
         ]
       },
       {
@@ -188,12 +308,32 @@
         "label": "採点して解説を返す",
         "description": "回答を受け取り、正誤をBigQueryに記録して、正解と解説をLINEグループに返す。",
         "mainNode": "cloud_run",
-        "inputNodes": [
-          "line_api"
-        ],
-        "outputNodes": [
-          "bigquery",
-          "line_group"
+        "actions": [
+          {
+            "type": "derive",
+            "artifacts": [
+              "answer",
+              "question"
+            ],
+            "results": [
+              "grade"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "grade"
+            ],
+            "to": "line_group",
+            "keep": true
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "grade"
+            ],
+            "to": "bigquery"
+          }
         ]
       },
       {
@@ -201,21 +341,56 @@
         "label": "進み具合を判定",
         "description": "同じテーマの直近3問がすべて正解かどうかを、BigQueryの記録で確かめる。",
         "mainNode": "cloud_run",
-        "inputNodes": [
-          "bigquery"
-        ],
-        "outputNodes": []
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "grade",
+              "progress"
+            ],
+            "from": "bigquery",
+            "keep": true
+          },
+          {
+            "type": "inspect",
+            "artifacts": [
+              "grade",
+              "progress"
+            ],
+            "label": "直近3問がすべて正解かを確かめる"
+          }
+        ]
       },
       {
         "id": "t8",
         "label": "次のテーマへ進む",
         "description": "シラバスの順番で次の中分類をBigQueryに記録する。次の出題からは新しいテーマになる。",
         "mainNode": "cloud_run",
-        "inputNodes": [
-          "syllabus"
-        ],
-        "outputNodes": [
-          "bigquery"
+        "actions": [
+          {
+            "type": "receive",
+            "artifacts": [
+              "range"
+            ],
+            "from": "syllabus",
+            "keep": true
+          },
+          {
+            "type": "derive",
+            "artifacts": [
+              "range"
+            ],
+            "results": [
+              "next"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "next"
+            ],
+            "to": "bigquery"
+          }
         ]
       },
       {
@@ -223,9 +398,20 @@
         "label": "同じテーマにとどまる",
         "description": "",
         "mainNode": "cloud_run",
-        "inputNodes": [],
-        "outputNodes": [
-          "bigquery"
+        "actions": [
+          {
+            "type": "create",
+            "results": [
+              "stay"
+            ]
+          },
+          {
+            "type": "send",
+            "artifacts": [
+              "stay"
+            ],
+            "to": "bigquery"
+          }
         ]
       }
     ],

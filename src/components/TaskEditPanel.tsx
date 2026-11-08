@@ -8,6 +8,7 @@ import {
   NEEDS_ARTIFACTS,
   NEEDS_RESULTS,
   placesBeforeAction,
+  readCopies,
   usableResult,
   usableTarget,
 } from "../graph/actionCheck";
@@ -180,6 +181,7 @@ function ActionRow({ doc, task, index, action: a, onChange, onPick, onDelete, dr
   const rowRef = useRef<HTMLLIElement>(null);
   const places = useMemo(() => placesBeforeAction(doc, task.id, index), [doc, task.id, index]);
   const issues = useMemo(() => actionIssues(doc, task.id, index, places), [doc, task.id, index, places]);
+  const read = useMemo(() => readCopies(doc, task.id, index), [doc, task.id, index]);
   const artifacts = doc.artifacts ?? [];
   const nodes = doc.architecture.nodes;
   const others = nodes.filter((n) => n.id !== task.mainNode);
@@ -260,7 +262,7 @@ function ActionRow({ doc, task, index, action: a, onChange, onPick, onDelete, dr
           label={a.type === "transform" || a.type === "derive" ? "もと" : "対象"}
           selected={a.artifacts ?? []}
           artifacts={artifacts}
-          usable={(id) => usableTarget(places, a, task.mainNode, id)}
+          usable={(id) => usableTarget(places, a, task.mainNode, id, read)}
           onChange={(ids) => onChange({ ...a, artifacts: ids })}
         />
       )}

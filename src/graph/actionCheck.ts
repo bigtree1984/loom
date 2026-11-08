@@ -25,16 +25,31 @@ export function placesBeforeAction(doc: LoomDocument, taskId: string, index: num
   return artifactStateAt(cut, steps).places;
 }
 
-/** Types whose `artifacts` must already sit on the subject node. */
-const ON_SUBJECT = new Set(["send", "transform", "derive", "inspect", "discard"]);
+/** Types whose `artifacts` must already sit on the subject node. (send
+ * isn't one: the subject may fetch it from where it sits, e.g. records read
+ * out of BigQuery and handed on — the replay does the same.) */
+const ON_SUBJECT = new Set(["transform", "derive", "inspect", "discard"]);
 export const NEEDS_ARTIFACTS = new Set(["send", "receive", "transform", "derive", "inspect", "discard"]);
 export const NEEDS_RESULTS = new Set(["create", "transform", "derive"]);
 
+/** Read earlier in the same task with a keep:true receive (a copy read
+ * out of a store): the subject has it in hand for the rest of the task,
+ * though the replay's flying copy is gone on arrival. */
+export function readCopies(doc: LoomDocument, taskId: string, index: number): Set<string> {
+  const task = doc.flow.tasks.find((t) => t.id === taskId);
+  return new Set((task?.actions ?? []).slice(0, index).flatMap((a) => (a.type === "receive" && a.keep ? (a.artifacts ?? []) : [])));
+}
+
 /** Can this artifact be the action's target at that point? */
-export function usableTarget(places: ArtifactPlaces, action: TaskAction, subject: string, id: string): boolean {
+export function usableTarget(places: ArtifactPlaces, action: TaskAction, subject: string, id: string, read: ReadonlySet<string> = new Set()): boolean {
+  if (ON_SUBJECT.has(action.type) && read.has(id)) return true;
   const p = places.get(id);
+  // Receiving something never born yet: the sender produced it (e.g. Gemini
+  // returns a question) — the replay has it appear there, then move.
+  if (action.type === "receive" && !p?.node && !!action.from) return true;
   if (!p?.visible || !p.node) return false;
   if (action.type === "receive") return action.from ? p.node === action.from : p.node !== subject;
+  if (action.type === "send") return true;
   if (ON_SUBJECT.has(action.type)) return p.node === subject;
   return false;
 }
@@ -58,15 +73,20 @@ export function actionIssues(doc: LoomDocument, taskId: string, index: number, p
   const out: ActionIssue[] = [];
   const ins = action.artifacts ?? [];
   const outs = action.results ?? [];
+  const read = readCopies(doc, taskId, index);
   (action.removedArtifacts ?? []).forEach((l) => out.push({ text: `「${l}」を一覧から消したため外しました` }));
   if (NEEDS_ARTIFACTS.has(action.type) && ins.length === 0) out.push({ text: "対象のアーティファクトがありません" });
   if (NEEDS_RESULTS.has(action.type) && outs.length === 0) out.push({ text: "結果のアーティファクトがありません" });
   if (action.type === "receive" && !action.from) out.push({ text: "受け取り元のノードが決まっていません" });
   if (action.type === "send" && !action.to) out.push({ text: "渡し先のノードが決まっていません" });
   ins.forEach((id) => {
-    if (usableTarget(places, action, task.mainNode, id)) return;
+    if (usableTarget(places, action, task.mainNode, id, read)) return;
     const p = places.get(id);
     const where = p?.visible && p.node ? `${nodeLabel(p.node)}にあります` : "この時点ではまだありません（または役目を終えています）";
+    if (action.type === "send") {
+      out.push({ text: `「${label(id)}」はこの時点でどこにもありません（まだないか、役目を終えています）` });
+      return;
+    }
     const need = action.type === "receive" ? (action.from ? `${nodeLabel(action.from)}` : "ほかのノード") : nodeLabel(task.mainNode);
     out.push({ text: `「${label(id)}」は${need}にありません（${where}）` });
   });

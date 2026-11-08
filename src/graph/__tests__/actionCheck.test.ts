@@ -37,3 +37,22 @@ describe("action checks (DESIGN_v3 §4 item 8)", () => {
     expect(actionIssues(d, "t5", 1).map((x) => x.text)).toEqual(["「古いタグ」を一覧から消したため外しました"]);
   });
 });
+
+describe("the built-in sample passes the checks", () => {
+  it("has no ⚠ (send fetches from a store; receive of an unborn result)", async () => {
+    const s = (await import("../../sample-data/it-passport-v3.json")).default;
+    const d = normalizeLoomDocument(s as unknown as LoomDocumentInput);
+    const out: string[] = [];
+    d.flow.tasks.forEach((t) => (t.actions ?? []).forEach((_, i) => actionIssues(d, t.id, i).forEach((x) => out.push(`${t.label}#${i + 1}: ${x.text}`))));
+    expect(out).toEqual([]);
+  });
+  it("the other v3 samples too", async () => {
+    for (const f of ["receipt-automation-v3", "voice-clone-v3", "stress-artifacts-v3", "parallel-uneven-v3"]) {
+      const s = (await import(`../../../samples/${f}.json`)).default;
+      const d = normalizeLoomDocument(s as unknown as LoomDocumentInput);
+      const out: string[] = [];
+      d.flow.tasks.forEach((t) => (t.actions ?? []).forEach((_, i) => actionIssues(d, t.id, i).forEach((x) => out.push(`${f} ${t.label}#${i + 1}: ${x.text}`))));
+      expect(out).toEqual([]);
+    }
+  });
+});
