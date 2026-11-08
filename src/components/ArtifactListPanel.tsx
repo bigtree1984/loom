@@ -134,7 +134,7 @@ function ArtifactItem({ doc, artifact: a, route, expanded, onToggle, onPatch, on
                 <JourneyItems items={journey.items} onOpenTask={onOpenTask} />
               </ol>
             ) : (
-              <span className="al-none">正規ルートでは通りません</span>
+              <span className="al-none">{journey.usedIn.length ? "正規ルートでは通りません" : "まだどこにも置かれていません"}</span>
             )}
           </div>
 

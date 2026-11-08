@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ArchEdge, ArchNodeType, LoomDocument } from "../types";
+import type { ArchEdge, ArchNodeType, Artifact, LoomDocument } from "../types";
 import { nextId } from "../graph/ids";
 import { memberships } from "../graph/lanes";
 import { Modal } from "./Modal";
@@ -33,6 +33,10 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
   const [newEdgeLabel, setNewEdgeLabel] = useState("");
   const [newEdgeDir, setNewEdgeDir] = useState<"out" | "in" | "both" | "none">("out");
   const [error, setError] = useState<string | null>(null);
+  // v3: artifacts that sit on this node from the start (`at`).
+  const [initial, setInitial] = useState<string[]>(() => (doc.artifacts ?? []).filter((x) => nodeId && x.at === nodeId).map((x) => x.id));
+  const [newArtifacts, setNewArtifacts] = useState<Artifact[]>([]);
+
 
   const otherNodes = doc.architecture.nodes.filter((n) => n.id !== nodeId);
   const columns = doc.architecture.columns;
@@ -81,9 +85,18 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
       icon: icon.trim() || undefined,
     };
     const otherEdges = doc.architecture.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
+    const artifacts = [...(doc.artifacts ?? []), ...newArtifacts].map((x) => {
+      if (initial.includes(x.id)) return x.at === id ? x : { ...x, at: id };
+      if (x.at === id || (nodeId && x.at === nodeId)) {
+        const { at: _at, ...rest } = x;
+        return rest;
+      }
+      return x;
+    });
 
     onSave({
       ...doc,
+      ...(artifacts.length ? { artifacts } : {}),
       architecture: {
         ...doc.architecture,
         nodes: existing
@@ -139,6 +152,18 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         <IconPicker value={icon} onChange={setIcon} />
       </div>
 
+      <InitialArtifacts
+        doc={doc}
+        nodeId={id}
+        selected={initial}
+        extra={newArtifacts}
+        onChange={setInitial}
+        onCreate={(x) => {
+          setNewArtifacts((list) => [...list, x]);
+          setInitial((ids) => [...ids, x.id]);
+        }}
+      />
+
       <p className="modal-section-title">接続</p>
       {edges.length === 0 && <p className="modal-conn-row">まだ接続がありません</p>}
       {edges.map((e, i) => {
@@ -191,5 +216,108 @@ export function NodeEditorModal({ doc, nodeId, onSave, onClose }: Props) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** 「最初からあるもの」(DESIGN_v3 §4 item 8): artifacts on this node at the
+ * start. Ones some task creates are listed greyed with ⚠ (still choosable —
+ * the checker then flags that task's action). */
+function InitialArtifacts({
+  doc,
+  nodeId,
+  selected,
+  extra,
+  onChange,
+  onCreate,
+}: {
+  doc: LoomDocument;
+  nodeId: string;
+  selected: string[];
+  extra: Artifact[];
+  onChange: (ids: string[]) => void;
+  onCreate: (a: Artifact) => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [transient, setTransient] = useState(false);
+  const [tool, setTool] = useState(false);
+  const all = [...(doc.artifacts ?? []), ...extra];
+  const labelOf = (id: string) => all.find((x) => x.id === id)?.label ?? id;
+  const nodeLabel = (id?: string) => doc.architecture.nodes.find((n) => n.id === id)?.label.split("\n")[0] ?? id;
+  const born = new Set(doc.flow.tasks.flatMap((t) => (t.actions ?? []).flatMap((a) => a.results ?? [])));
+  const rest = all.filter((x) => !selected.includes(x.id));
+  const ok = rest.filter((x) => !born.has(x.id));
+  const ng = rest.filter((x) => born.has(x.id));
+  const where = (x: Artifact) => (x.at && x.at !== nodeId ? `（今は${nodeLabel(x.at)}に置いています）` : "");
+  const create = () => {
+    const l = name.trim();
+    if (!l) return;
+    onCreate({ id: nextId("artifact", all.map((x) => x.id)), label: l, ...(transient ? { transient: true } : {}), ...(tool ? { tool: true } : {}) });
+    setName("");
+    setTransient(false);
+    setTool(false);
+    setCreating(false);
+  };
+  return (
+    <div className="modal-field">
+      <p className="modal-section-title">最初からあるもの</p>
+      <div className="te-chips">
+        {selected.length === 0 && <span className="al-none">ありません</span>}
+        {selected.map((id) => (
+          <span key={id} className={`te-chip${born.has(id) ? " is-ng" : ""}`} title={born.has(id) ? "タスクの action でも生まれるものです" : undefined}>
+            {born.has(id) && "⚠ "}
+            {labelOf(id)}
+            <button onClick={() => onChange(selected.filter((x) => x !== id))} aria-label={`${labelOf(id)} を外す`}>
+              ×
+            </button>
+          </span>
+        ))}
+        <select
+          className="te-chip-add"
+          value=""
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "__new") setCreating(true);
+            else if (v) onChange([...selected, v]);
+          }}
+          aria-label="最初からあるものを足す"
+        >
+          <option value="">＋ 足す…</option>
+          {ok.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.label}
+              {where(x)}
+            </option>
+          ))}
+          {ng.length > 0 && (
+            <optgroup label="タスクで生まれるもの">
+              {ng.map((x) => (
+                <option key={x.id} value={x.id}>
+                  ⚠ {x.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <option value="__new">＋ 新しく作る…</option>
+        </select>
+      </div>
+      {creating && (
+        <div className="te-new">
+          <input autoFocus value={name} placeholder="名前（例：音声1,013本）" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
+          <label className="te-check">
+            <input type="checkbox" checked={transient} onChange={(e) => setTransient(e.target.checked)} />
+            合図
+          </label>
+          <label className="te-check">
+            <input type="checkbox" checked={tool} onChange={(e) => setTool(e.target.checked)} />
+            ツール
+          </label>
+          <button onClick={create} disabled={!name.trim()}>
+            作る
+          </button>
+          <button onClick={() => setCreating(false)}>やめる</button>
+        </div>
+      )}
+    </div>
   );
 }
