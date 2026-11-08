@@ -9,7 +9,7 @@ import type { NodeProps } from "@xyflow/react";
  * where the chip finally sits. */
 export type ChipAnim = (
   | { kind: "move"; points: { dx: number; dy: number }[]; fadeOut?: boolean; fadeIn?: boolean; fadeFrom?: number }
-  | { kind: "born" }
+  | { kind: "born"; until?: number }
   | { kind: "ended" }
   | { kind: "collapse"; dx: number; dy: number }
 ) & { from: number; to: number; duration: number };
@@ -21,11 +21,19 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
   const span = travelTo - from;
   const at = (f: number) => from + span * f;
   if (a.kind === "born") {
+    // Appear within the first action only when it is used up later.
+    const at = (f: number) => from + (a.until !== undefined ? Math.min(span, a.until - from) : span) * f;
     return [
       { opacity: 0, transform: "scale(0.6)", offset: 0 },
       { opacity: 0, transform: "scale(0.6)", offset: from },
       { opacity: 1, transform: "scale(1)", offset: at(0.5) },
-      { opacity: 1, transform: "scale(1)", offset: 1 },
+      ...(a.until !== undefined
+        ? [
+            { opacity: 1, transform: "scale(1)", offset: Math.max(at(0.5), a.until) },
+            { opacity: 0, transform: "scale(1)", offset: Math.max(at(0.5), a.until) + 0.01 },
+            { opacity: 0, transform: "scale(1)", offset: 1 },
+          ]
+        : [{ opacity: 1, transform: "scale(1)", offset: 1 }]),
     ];
   }
   if (a.kind === "collapse") {

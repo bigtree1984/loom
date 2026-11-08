@@ -339,6 +339,10 @@ export function toArtifactNodes(
     // then travel.
     if (m?.path && m.path.length > 1 && p.visible)
       anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? bornSpot(m) : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
+    // Born, then sent off as a signal in the same step: appears, then is
+    // gone the moment its copy sets off.
+    else if (m?.born && m.ended)
+      anim = { kind: "born", ...win(m), until: clock.start(m.end ?? 0) / duration };
     else if (m?.born) anim = { kind: "born", ...win(m) };
     else if (m?.ended) anim = { kind: "ended", ...win(m) };
     const extra = now.groupExtra.get(a.id);

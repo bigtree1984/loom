@@ -114,7 +114,9 @@ export function applyTask(
           }
           if (vanishes) {
             ghostOf(id, place(id).node ?? (a.type === "receive" ? a.from : subject), target);
-            set(id, { node: target, visible: false });
+            // Gone on arrival: the copy flies; the chip itself stays where
+            // it was (e.g. born at the sender) and is used up there.
+            set(id, { ...place(id), visible: false });
             note(id, { ended: true, toNode: undefined });
             return;
           }

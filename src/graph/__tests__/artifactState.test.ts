@@ -40,7 +40,7 @@ describe("artifactStateAt", () => {
   });
   it("transient signal flies and is gone on arrival", () => {
     const { places, motions } = artifactStateAt(doc, [["t0"]]);
-    expect(places.get("sig")).toEqual({ node: "B", visible: false });
+    expect(places.get("sig")).toEqual({ node: "A", visible: false });
     expect([...motions.values()].some((m) => m.ghost && m.id === "sig" && m.toNode === "B")).toBe(true);
   });
   it("receive moves, transform ends the source, keep leaves the original, derive keeps sources", () => {
