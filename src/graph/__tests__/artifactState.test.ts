@@ -47,7 +47,7 @@ describe("artifactStateAt", () => {
     const { places, motions } = artifactStateAt(doc, [["t0"], ["t1"]]);
     expect(places.get("x")?.visible).toBe(false);
     expect(places.get("y")).toEqual({ node: "B", visible: true }); // keep: stays with B
-    expect(places.get("z")).toEqual({ node: "B", visible: true });
+    expect(places.get("z")).toEqual({ node: "B", visible: true, after: "y" });
     expect([...motions.values()].some((m) => m.ghost && m.id === "y" && m.toNode === "C")).toBe(true);
   });
   it("nothing played: only artifacts with `at` are shown", () => {

@@ -10,6 +10,8 @@ export interface ArtifactPlace {
   /** Node it sits on (undefined = not born yet). */
   node?: string;
   visible: boolean;
+  /** Derived from this artifact on the same node: drawn right below it. */
+  after?: string;
 }
 
 /** What the current step did, for emphasis and animation. */
@@ -36,6 +38,8 @@ export interface ArtifactMotion {
   end?: number;
   /** First action that used it without moving it (for grouping chips). */
   touchedAt?: number;
+  /** Born from this artifact on the same node (derive): appears below it. */
+  bornAfter?: string;
 }
 
 export type ArtifactPlaces = Map<string, ArtifactPlace>;
@@ -134,8 +138,10 @@ export function applyTask(
           } else note(id, { touched: true });
         });
         outs.forEach((id) => {
-          note(id, { born: true, toNode: subject, path: [subject] });
-          set(id, { node: subject, visible: true });
+          const src0 = a.type === "derive" ? ins.find((i) => place(i).node === subject) : undefined;
+          note(id, { born: true, toNode: subject, path: [subject], ...(src0 ? { bornAfter: src0 } : {}) });
+          const src = a.type === "derive" ? ins.find((i) => place(i).node === subject) : undefined;
+          set(id, { node: subject, visible: true, ...(src ? { after: src } : {}) });
         });
         break;
       case "inspect":

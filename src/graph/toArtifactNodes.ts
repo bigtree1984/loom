@@ -161,7 +161,16 @@ function layoutSlots(
     (a.tool ? e.tools : e.chips).push(a);
     byNode.set(p.node, e);
   });
-  byNode.forEach(({ tools, chips: allChips }, node) => {
+  byNode.forEach(({ tools, chips: listed }, node) => {
+    // A derived artifact sits right below the one it was derived from.
+    const allChips = listed.filter((a) => !listed.some((b) => b.id === places.get(a.id)?.after));
+    listed
+      .filter((a) => !allChips.includes(a))
+      .forEach((a) => {
+        const i = allChips.findIndex((b) => b.id === places.get(a.id)?.after);
+        if (i >= 0) allChips.splice(i + 1, 0, a);
+        else allChips.push(a);
+      });
     let chips = allChips;
     const pos = nodePos.get(node)!;
     tools.forEach((a, i) => {
@@ -257,6 +266,12 @@ export function toArtifactNodes(
     return { ...w, to: w.to + clock.hold(m.end ?? 0) / duration, fadeFrom: w.to };
   };
 
+  // Where something born and moved on in the same step first appears:
+  // right below what it was derived from, if that is on the birth node.
+  const bornSpot = (m: ArtifactMotion) => {
+    const src = m.bornAfter ? (now.pos.get(m.bornAfter) ?? prev?.pos.get(m.bornAfter)) : undefined;
+    return src ? { x: src.x, y: src.y + CHIP_H + CHIP_GAP } : undefined;
+  };
   // Waypoints as offsets from the final spot (intermediate nodes use their
   // first chip slot).
   const pointsFor = (path: string[], end: { x: number; y: number }, start?: { x: number; y: number }) =>
@@ -282,7 +297,7 @@ export function toArtifactNodes(
     // Born and then handed on in the same step: appear at the birthplace,
     // then travel.
     if (m?.path && m.path.length > 1 && p.visible)
-      anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? undefined : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
+      anim = { kind: "move", points: pointsFor(m.path, slot, m.born ? bornSpot(m) : prev?.pos.get(a.id)), fadeIn: !!m.born, ...win(m) };
     else if (m?.born) anim = { kind: "born", ...win(m) };
     else if (m?.ended) anim = { kind: "ended", ...win(m) };
     const extra = now.groupExtra.get(a.id);
