@@ -340,6 +340,20 @@ export function toArtifactNodes(
     const hasTools = artifacts.some((x) => x.tool && places.get(x.id)?.visible && places.get(x.id)?.node === node);
     return chipSlot(nodePos.get(node)!, g, shown + k + (hasTools ? 0.7 : 0));
   };
+  // Where something appears on a node it wasn't on before the step (a
+  // signal or result produced there): below what the node already showed.
+  const appearSlot = (node: string) => {
+    const pos = nodePos.get(node);
+    if (!pos) return undefined;
+    let shown = 0;
+    prev?.pos.forEach((_, id) => {
+      const a = artifacts.find((x) => x.id === id);
+      if (a && !a.tool && before?.get(id)?.node === node) shown++;
+    });
+    if (prev?.more.has(node)) shown++;
+    const hasTools = artifacts.some((x) => x.tool && before?.get(x.id)?.visible && before?.get(x.id)?.node === node);
+    return chipSlot(pos, g, shown + (hasTools ? 0.7 : 0));
+  };
   const out: Node[] = [];
   artifacts.forEach((a) => {
     const p = places.get(a.id);
@@ -352,7 +366,16 @@ export function toArtifactNodes(
     // Brought here and used up in the same step (received, then merged by
     // a transform): it lands on its own free slot, rests, then fades.
     const usedOnArrival = !!(m?.path && m.path.length > 1 && !p.visible && m.ended && !a.tool);
-    const slot = now.pos.get(a.id) ?? (usedOnArrival ? arrivalSlot(p.node) : a.tool ? toolSlot(pos, g, 0) : chipSlot(pos, g, 0));
+    const bornAndGone = !!(m?.born && m.ended && !p.visible && !a.tool);
+    const slot =
+      now.pos.get(a.id) ??
+      (usedOnArrival
+        ? arrivalSlot(p.node)
+        : bornAndGone
+          ? (appearSlot(p.node) ?? chipSlot(pos, g, 0))
+          : a.tool
+            ? toolSlot(pos, g, 0)
+            : chipSlot(pos, g, 0));
     let anim: ChipAnim | undefined;
     // Transformed in place: the source stays on its own slot, then shrinks
     // toward the result's spot (the node's first slot) as the result grows.
@@ -398,7 +421,7 @@ export function toArtifactNodes(
           : { from: clock.start(m.start ?? 0) / duration, to: (clock.start(m.start ?? 0) + clock.ms(m.start ?? 0) * 0.5) / duration };
       anim = {
         kind: "move",
-        points: pointsFor(m.path, slot, m.born ? (bornSpot(m) ?? (m.bornByTransformAt !== undefined && nodePos.get(m.path[0]) ? chipSlot(nodePos.get(m.path[0])!, g, 0) : undefined)) : prev?.pos.get(a.id)),
+        points: pointsFor(m.path, slot, m.born ? (bornSpot(m) ?? (m.bornByTransformAt !== undefined && nodePos.get(m.path[0]) ? chipSlot(nodePos.get(m.path[0])!, g, 0) : appearSlot(m.path[0]))) : prev?.pos.get(a.id)),
         ...(appear ? { appear } : {}),
         ...win(m),
         from: clock.start(first) / duration,
@@ -502,7 +525,7 @@ export function toArtifactNodes(
       label: ghostExtra ? `${a?.label ?? m.id} ほか${ghostExtra}件` : (a?.label ?? m.id),
       active: true,
       color: colorOf(m),
-      anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...ghostWin(m) },
+      anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id) ?? (m.path[0] ? appearSlot(m.path[0]) : undefined)), fadeOut: true, ...ghostWin(m) },
       stepKey: `${stepKey}-${gi++}`,
     };
     out.push(chipNode(`artifact-ghost-${key}-${stepKey}`, end, data, 6, { w: CHIP_W, h: CHIP_H }));
