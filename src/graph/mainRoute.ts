@@ -110,7 +110,8 @@ export function stepFlow(ctx: FlowContext, s: FlowSnapshot, choices: Record<stri
   return { position, joinArrivals: arrivals };
 }
 
-/** Snapshots from the start up to the first one containing `target`
+/** Snapshots from the start up to the first one where `target` runs (a join
+ * still waiting does not count)
  * (inclusive), along the main route; null if it can't be reached. */
 export function mainRouteTo(doc: LoomDocument, target: string, maxSteps = 500): FlowSnapshot[] | null {
   const ctx = flowContext(doc);
@@ -129,8 +130,12 @@ export function mainRouteTo(doc: LoomDocument, target: string, maxSteps = 500): 
   }
   let s: FlowSnapshot = { position: [ctx.root], joinArrivals: {} };
   const out = [s];
+  // First snapshot holding `target` at all: the fallback when a join never
+  // fills (two either-or branches meeting are still counted as an AND join).
+  let reached = -1;
   for (let i = 0; i < maxSteps; i++) {
-    if (s.position.includes(target)) return out;
+    if (runningTasks(ctx, s).includes(target)) return out;
+    if (reached < 0 && s.position.includes(target)) reached = out.length - 1;
     const choices: Record<string, string> = {};
     s.position.forEach((id) => {
       const opts = ctx.sortedOptions(id).filter((o) => !ctx.isBack(o));
@@ -140,9 +145,9 @@ export function mainRouteTo(doc: LoomDocument, target: string, maxSteps = 500): 
       choices[id] = pick.to;
     });
     const n = stepFlow(ctx, s, choices);
-    if (!n) return null;
+    if (!n) return reached >= 0 ? out.slice(0, reached + 1) : null;
     s = n;
     out.push(s);
   }
-  return null;
+  return reached >= 0 ? out.slice(0, reached + 1) : null;
 }

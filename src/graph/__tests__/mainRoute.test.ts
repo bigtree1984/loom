@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { flowContext, mainRouteTo, runningTasks, stepFlow, type FlowSnapshot } from "../mainRoute";
 import { normalizeLoomDocument } from "../normalizeDocument";
 import receipt from "../../../samples/receipt-automation-v3.json";
+import unevenSample from "../../../samples/parallel-uneven-v3.json";
+import { artifactStateAt } from "../artifactState";
 import type { LoomDocument, LoomDocumentInput } from "../../types";
 
 const doc = normalizeLoomDocument(receipt as unknown as LoomDocumentInput);
@@ -61,5 +63,21 @@ describe("runningTasks", () => {
       s = n;
     }
     expect(seen).toEqual([["s"], ["a1", "b"], ["a2"], ["j"]]);
+  });
+});
+
+describe("parallel branches of different lengths", () => {
+  const uneven = normalizeLoomDocument(unevenSample as unknown as LoomDocumentInput);
+  it("jumps to the join only once every branch has arrived", () => {
+    expect(route("t5", uneven)).toEqual(["t1", "t2a+t2b", "t3a+t5", "t4a+t5", "t5"]);
+  });
+  it("does not replay the join's actions while it waits", () => {
+    const ctx = flowContext(uneven);
+    const steps = mainRouteTo(uneven, "t5")!.map((s) => runningTasks(ctx, s));
+    expect(steps).toEqual([["t1"], ["t2a", "t2b"], ["t3a"], ["t4a"], ["t5"]]);
+    const before = artifactStateAt(uneven, steps.slice(0, 4)).places;
+    expect(before.get("bg_tags")).toEqual({ node: "bg_agent", visible: true });
+    expect(before.get("caption")?.visible).toBe(false);
+    expect(artifactStateAt(uneven, steps).places.get("caption")).toEqual({ node: "app", visible: true });
   });
 });

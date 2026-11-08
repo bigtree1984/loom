@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "title": "写真の解析（並行する道の長さが違う）",
+  "architecture": {
+    "nodes": [
+      { "id": "user", "label": "撮影者", "type": "human" },
+      { "id": "app", "label": "写真アプリ", "type": "frontend" },
+      { "id": "person_agent", "label": "人物解析エージェント", "type": "agent", "group": "analysis" },
+      { "id": "bg_agent", "label": "背景解析エージェント", "type": "agent", "group": "analysis" },
+      { "id": "reviewer", "label": "確認担当", "type": "human" },
+      { "id": "composer", "label": "説明文の生成", "type": "backend" }
+    ],
+    "edges": [
+      { "a": "user", "b": "app", "label": "アップロード" },
+      { "a": "app", "b": "person_agent" },
+      { "a": "app", "b": "bg_agent" },
+      { "a": "person_agent", "b": "reviewer" },
+      { "a": "reviewer", "b": "composer" },
+      { "a": "bg_agent", "b": "composer" },
+      { "a": "composer", "b": "app" }
+    ],
+    "groups": [{ "id": "analysis", "label": "解析" }]
+  },
+  "artifacts": [
+    { "id": "photo", "label": "写真" },
+    { "id": "person_tags", "label": "人物タグ" },
+    { "id": "person_tags_clean", "label": "人物タグ（整理済み）" },
+    { "id": "bg_tags", "label": "背景タグ" },
+    { "id": "caption", "label": "写真の説明文" }
+  ],
+  "flow": {
+    "tasks": [
+      { "id": "t1", "label": "写真をアップロード", "description": "撮影者が写真を写真アプリにアップロードする。", "mainNode": "user",
+        "actions": [
+          { "type": "create", "results": ["photo"], "label": "写真を撮る" },
+          { "type": "send", "artifacts": ["photo"], "to": "app" }
+        ] },
+      { "id": "t2a", "label": "人物解析", "description": "写真に写っている人物を解析する（長い道の1つめ）。", "mainNode": "person_agent",
+        "actions": [
+          { "type": "receive", "artifacts": ["photo"], "from": "app", "keep": true },
+          { "type": "create", "results": ["person_tags"], "label": "人物を見つけてタグを付ける" }
+        ] },
+      { "id": "t3a", "label": "人物タグを整える", "description": "重複や表記ゆれを整える（長い道の2つめ）。", "mainNode": "person_agent",
+        "actions": [
+          { "type": "transform", "artifacts": ["person_tags"], "results": ["person_tags_clean"] }
+        ] },
+      { "id": "t4a", "label": "確認", "description": "確認担当が人物タグを確かめる（長い道の3つめ）。", "mainNode": "reviewer",
+        "actions": [
+          { "type": "receive", "artifacts": ["person_tags_clean"], "from": "person_agent" },
+          { "type": "inspect", "artifacts": ["person_tags_clean"], "label": "人物タグを確かめる" }
+        ] },
+      { "id": "t2b", "label": "背景解析", "description": "写真の背景を解析する（短い道。この1つで合流へ）。", "mainNode": "bg_agent",
+        "actions": [
+          { "type": "receive", "artifacts": ["photo"], "from": "app", "keep": true },
+          { "type": "create", "results": ["bg_tags"], "label": "場所や景色にタグを付ける" }
+        ] },
+      { "id": "t5", "label": "まとめる", "description": "両方の道が着いてから、人物タグと背景タグを合わせて説明文を作る。", "mainNode": "composer",
+        "actions": [
+          { "type": "receive", "artifacts": ["person_tags_clean"], "from": "reviewer" },
+          { "type": "receive", "artifacts": ["bg_tags"], "from": "bg_agent" },
+          { "type": "transform", "artifacts": ["person_tags_clean", "bg_tags"], "results": ["caption"] },
+          { "type": "send", "artifacts": ["caption"], "to": "app" }
+        ] }
+    ],
+    "connections": [
+      { "from": "t1", "to": "t2a" },
+      { "from": "t1", "to": "t2b" },
+      { "from": "t2a", "to": "t3a" },
+      { "from": "t3a", "to": "t4a" },
+      { "from": "t4a", "to": "t5" },
+      { "from": "t2b", "to": "t5" }
+    ]
+  }
+}
