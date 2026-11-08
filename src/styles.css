@@ -1161,3 +1161,113 @@
 .te-add {
   align-self: flex-start;
 }
+
+/* ---- v3 artifact list (DESIGN_v3 §4 item 8) ---- */
+.al-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.al-item {
+  border: 1px solid var(--loom-border);
+  border-radius: 8px;
+  background: var(--loom-bg);
+}
+.al-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 8px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+.al-caret {
+  color: var(--loom-text-secondary);
+  width: 1em;
+}
+.al-name {
+  flex: 1;
+  font-weight: 600;
+}
+.al-kind {
+  font-size: 11px;
+  border: 1px solid var(--loom-border);
+  border-radius: 999px;
+  padding: 0 6px;
+  color: var(--loom-text-secondary);
+}
+.al-body {
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.al-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.al-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.al-task,
+.al-event-task {
+  font: inherit;
+  font-size: 12px;
+  padding: 1px 8px;
+}
+.al-none,
+.al-empty {
+  color: var(--loom-text-secondary);
+  font-size: 12px;
+}
+.al-journey,
+.al-branch {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.al-journey {
+  border-left: 2px solid var(--loom-c1);
+  padding-left: 10px;
+}
+.al-branch {
+  border-left: 2px dashed var(--loom-border);
+  padding-left: 10px;
+  margin: 4px 0 4px 4px;
+}
+.al-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 4px;
+  font-size: 12px;
+}
+.al-event-node {
+  color: var(--loom-text-secondary);
+}
+.al-event-text {
+  flex: 1 1 100%;
+}
+.al-start,
+.al-fork-label {
+  font-size: 12px;
+  color: var(--loom-text-secondary);
+}
+.al-delete {
+  align-self: flex-start;
+  color: var(--loom-danger);
+}

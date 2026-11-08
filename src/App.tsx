@@ -25,6 +25,7 @@ import { JsonUploader } from "./components/JsonUploader";
 import { NodeEditorModal } from "./components/NodeEditorModal";
 import { TaskEditorModal, type PickTarget } from "./components/TaskEditorModal";
 import { TaskEditPanel } from "./components/TaskEditPanel";
+import { ArtifactListPanel } from "./components/ArtifactListPanel";
 import { tasksWithIssues } from "./graph/actionCheck";
 import { GroupEditorModal } from "./components/GroupEditorModal";
 import { JsonEditorModal } from "./components/JsonEditorModal";
@@ -75,6 +76,15 @@ function App() {
   const [pick, setPick] = useState<PickState | null>(null);
   // Task open in the side editor; playback follows it after every edit.
   const [panelTask, setPanelTask] = useState<string | null>(null);
+  const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const openTaskPanel = useCallback(
+    (id: string) => {
+      setArtifactsOpen(false);
+      setPanelTask(id);
+      loom.jumpTo(id);
+    },
+    [loom],
+  );
   // After an edit (or undo, which rewinds playback) show the edited task's
   // step again — but don't fight 次へ / 戻る between edits.
   const jumpRef = useRef(loom.jumpTo);
@@ -420,6 +430,11 @@ function App() {
               </a>
             </div>
           </div>
+          {!present && !note && (
+            <button onClick={() => setArtifactsOpen((o) => !o)} aria-pressed={artifactsOpen} disabled={!loom.doc}>
+              アーティファクト
+            </button>
+          )}
           <NoteExportMenu
             doc={loom.doc}
             currentTasks={loom.currentTasks}
@@ -452,11 +467,8 @@ function App() {
             edges={processFlow.edges}
             onTaskClick={loom.jumpTo}
             onPaneClick={loom.clearPosition}
-            onTaskDoubleClick={(id) => {
-              // v3: the side editor (DESIGN_v3 §4 item 8), live with playback.
-              setPanelTask(id);
-              loom.jumpTo(id);
-            }}
+            // v3: the side editor (DESIGN_v3 §4 item 8), live with playback.
+            onTaskDoubleClick={openTaskPanel}
             onAddTask={() => setEditor({ kind: "task", id: null })}
             readOnly={present}
             picking={
@@ -510,7 +522,10 @@ function App() {
             ) : null}
           </TaskDetailPanel>
         </div>
-        {panelTask && !present && !note && loom.doc?.flow.tasks.some((t) => t.id === panelTask) && (
+        {artifactsOpen && !present && !note && loom.doc && (
+          <ArtifactListPanel doc={loom.doc} onEdit={loom.editDocument} onClose={() => setArtifactsOpen(false)} onOpenTask={openTaskPanel} />
+        )}
+        {!artifactsOpen && panelTask && !present && !note && loom.doc?.flow.tasks.some((t) => t.id === panelTask) && (
           <TaskEditPanel
             doc={loom.doc}
             taskId={panelTask}
