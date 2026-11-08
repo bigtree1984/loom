@@ -248,7 +248,9 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
         // whichever branch happened to arrive first. A "bypass" entry
         // (a loop-back re-entry) always counts as satisfied.
         if (isJoinTask(taskId)) {
-          const entry = nextArrivals[taskId];
+          // Judge against the arrivals at the start of this step: a branch
+          // arriving during this step lets the join run next step, not now.
+          const entry = joinArrivals[taskId];
           if (entry !== "bypass") {
             const required = requiredArrivalsByTask.get(taskId) ?? 0;
             const arrived = entry?.length ?? 0;
