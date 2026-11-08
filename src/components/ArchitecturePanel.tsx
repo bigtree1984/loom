@@ -305,7 +305,7 @@ export function ArchitecturePanel({
   const tileNodes: Node[] = useMemo(
     () =>
       tiles.map((t) => {
-        const data: LoomLaneTileData = { shape: layout === "hex" && !t.kind ? "hex" : "rect", odd: t.lane % 2 === 1 };
+        const data: LoomLaneTileData = { shape: layout === "hex" && !t.kind ? "hex" : "rect", odd: t.lane % 2 === 1, bottom: t.bottom };
         return {
           id: t.kind ? `lane-band-${t.col}-${t.row}` : `lane-tile-${t.col}-${t.row}`,
           type: "loomLaneTile",
