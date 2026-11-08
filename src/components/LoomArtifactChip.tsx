@@ -56,7 +56,14 @@ function keyframesFor(a: ChipAnim): Keyframe[] {
   const frames: Keyframe[] = [{ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: 0 }];
   frames.push({ transform: t(pts[0]), opacity: a.fadeOut ? 0 : startOpacity, offset: from });
   const hops = Math.max(1, pts.length - 1);
-  pts.forEach((p, i) => frames.push({ transform: t(p), opacity: 1, offset: at((0.15 + (0.85 * i) / hops) * 0.85) }));
+  // Constant speed: each waypoint is reached in proportion to the distance
+  // travelled so far (not per hop).
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy));
+  const total = cum[cum.length - 1];
+  pts.forEach((p, i) =>
+    frames.push({ transform: t(p), opacity: 1, offset: at((0.15 + 0.85 * (total ? cum[i] / total : i / hops)) * 0.85) }),
+  );
   frames.push({ transform: "translate(0, 0)", opacity: 1, offset: at(0.85) });
   if (a.fadeOut && a.fadeFrom !== undefined)
     frames.push({ transform: "translate(0, 0)", opacity: 1, offset: to - (to - a.fadeFrom) * 0.25 });
@@ -95,7 +102,7 @@ export function LoomArtifactChip({ data }: NodeProps) {
     const el = ref.current;
     if (!el || !d.anim || typeof el.animate !== "function") return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const anim = el.animate(keyframesFor(d.anim), { duration: d.anim.duration, iterations: Infinity, easing: "ease-in-out" });
+    const anim = el.animate(keyframesFor(d.anim), { duration: d.anim.duration, iterations: Infinity, easing: "linear" });
     return () => anim.cancel();
     // stepKey restarts the loop on every step.
     // eslint-disable-next-line react-hooks/exhaustive-deps

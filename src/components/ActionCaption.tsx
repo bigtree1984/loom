@@ -8,13 +8,15 @@ interface Props {
   tasks: Task[];
   /** Changes every step so the clock restarts with the chip animations. */
   stepKey: string;
+  /** Length of each action (constant move speed), same as the chips. */
+  actionMs?: readonly number[];
 }
 
 /**
  * Caption over the architecture diagram naming the action that is playing
  * right now, on the same clock as the looping artifact animation.
  */
-export function ActionCaption({ doc, tasks, stepKey }: Props) {
+export function ActionCaption({ doc, tasks, stepKey, actionMs }: Props) {
   const slots = stepActions(tasks);
   const [now, setNow] = useState(0);
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ActionCaption({ doc, tasks, stepKey }: Props) {
     )
       holds.add(i);
   });
-  const clock = stepLoopTiming(slots.length, holds);
+  const clock = stepLoopTiming(slots.length, holds, actionMs);
   // During the closing pause, keep showing the last action.
   const current = clock.slotAt(now % clock.duration);
   return (

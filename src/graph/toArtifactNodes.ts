@@ -79,12 +79,13 @@ export const HOLD_MS = 1000;
 export const ARRIVE_HOLD_MS = 1000;
 /** Loop clock. `holds` = action indexes containing such a vanishing
  * arrival; those actions get ARRIVE_HOLD_MS extra. */
-export function stepLoopTiming(actions: number, holds: ReadonlySet<number> = new Set()) {
+export function stepLoopTiming(actions: number, holds: ReadonlySet<number> = new Set(), actionMs: readonly number[] = []) {
   const starts: number[] = [];
   let t = 0;
+  const ms = (i: number) => actionMs[i] ?? ACTION_MS;
   for (let i = 0; i < actions; i++) {
     starts.push(t);
-    t += ACTION_MS + (holds.has(i) ? ARRIVE_HOLD_MS : 0) + GAP_MS;
+    t += ms(i) + (holds.has(i) ? ARRIVE_HOLD_MS : 0) + GAP_MS;
   }
   const start = (i: number) => starts[i] ?? t;
   const slotAt = (ms: number) => {
@@ -94,7 +95,46 @@ export function stepLoopTiming(actions: number, holds: ReadonlySet<number> = new
     });
     return cur;
   };
-  return { duration: t + HOLD_MS, start, slotAt, hold: (i: number) => (holds.has(i) ? ARRIVE_HOLD_MS : 0) };
+  return { duration: t + HOLD_MS, start, slotAt, ms, hold: (i: number) => (holds.has(i) ? ARRIVE_HOLD_MS : 0) };
+}
+
+/** Constant speed (flow px per second) for moves; each action's length
+ * follows its longest move, within [MIN, MAX] travel time. The move takes
+ * TRAVEL_FRAC of its action (the rest: appearing / settling). */
+export const MOVE_PX_PER_S = 220;
+export const MIN_TRAVEL_MS = 700;
+export const MAX_TRAVEL_MS = 2600;
+export const TRAVEL_FRAC = 0.72;
+
+/** Screen length of a route through these nodes (first chip slots). */
+function routeLength(path: string[], nodePos: Map<string, { x: number; y: number }>, edges: { from: string; to: string }[]) {
+  const pts = routed(path, edges)
+    .map((n) => nodePos.get(n))
+    .filter((p): p is { x: number; y: number } => !!p);
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return d;
+}
+
+/** Length (ms) of each action of the step, from its longest move. Shared
+ * by the chips and the action captions so both run on one clock. */
+export function actionDurations(
+  motions: Map<string, ArtifactMotion>,
+  nodePos: Map<string, { x: number; y: number }>,
+  edges: { from: string; to: string }[],
+  actionCount: number,
+): number[] {
+  const longest: number[] = [];
+  motions.forEach((m) => {
+    if (!m.path || m.path.length < 2) return;
+    const i = m.end ?? 0;
+    longest[i] = Math.max(longest[i] ?? 0, routeLength(m.path, nodePos, edges));
+  });
+  return Array.from({ length: Math.max(actionCount, longest.length) }, (_, i) => {
+    if (!longest[i]) return ACTION_MS;
+    const travel = Math.min(MAX_TRAVEL_MS, Math.max(MIN_TRAVEL_MS, (longest[i] / MOVE_PX_PER_S) * 1000));
+    return Math.round(travel / TRAVEL_FRAC);
+  });
 }
 
 /** Compact mode (crowded nodes): tools become small icons in a row, and
@@ -230,6 +270,7 @@ export function toArtifactNodes(
   before?: ArtifactPlaces,
   compact = false,
   actionCount = 0,
+  actionMs: readonly number[] = [],
 ): Node[] {
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
   const now = layoutSlots(artifacts, places, nodePos, g, compact, touched, motions);
@@ -253,11 +294,11 @@ export function toArtifactNodes(
   // The step's actions play one after another in a shared loop (see
   // stepLoopTiming; the action captions use the same clock).
   const holds = new Set([...motions.values()].filter((m) => m.ghost).map((m) => m.start ?? 0));
-  const clock = stepLoopTiming(Math.max(actionCount, 1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1)), holds);
+  const clock = stepLoopTiming(Math.max(actionCount, 1, ...[...motions.values()].map((m) => (m.end ?? 0) + 1)), holds, actionMs);
   const duration = clock.duration;
   const win = (m: ArtifactMotion) => ({
     from: clock.start(m.start ?? 0) / duration,
-    to: (clock.start(m.end ?? 0) + ACTION_MS) / duration,
+    to: (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0)) / duration,
     duration,
   });
   // Vanishing arrivals: travel in ACTION_MS, then rest before fading.
@@ -322,7 +363,7 @@ export function toArtifactNodes(
     let t: number | undefined;
     motions.forEach((m) => {
       if (m.ghost || m.toNode !== node || !m.path || m.path.length < 2) return;
-      const at = (clock.start(m.end ?? 0) + ACTION_MS * 0.3) / duration;
+      const at = (clock.start(m.end ?? 0) + clock.ms(m.end ?? 0) * 0.3) / duration;
       t = t === undefined ? at : Math.max(t, at);
     });
     return t;

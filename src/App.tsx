@@ -7,7 +7,7 @@ import type { LoomDocument } from "./types";
 import { useLoomState } from "./state/useLoomState";
 import { NoteExportMenu } from "./export/NoteExportMenu";
 import { toArchitectureFlow } from "./graph/toArchitectureFlow";
-import { toArtifactNodes } from "./graph/toArtifactNodes";
+import { actionDurations, toArtifactNodes } from "./graph/toArtifactNodes";
 import { routeColorFor } from "./graph/routeColors";
 import { addEdge, moveColumn, moveNodeToCell, removeEdgeAt, reverseEdgeAt, setEdgeDirectionAt, swapColumns, type EdgeDirection } from "./graph/gridEdits";
 import { clearPlacement } from "./graph/normalizeDocument";
@@ -189,6 +189,13 @@ function App() {
   // with few artifacts it looks the same as the full form.
   const compactArtifacts = true;
   // v3 artifact chips on the architecture diagram.
+  // Length of each action of the step (constant move speed), shared by the
+  // chips and the action captions.
+  const actionMs = useMemo(() => {
+    if (!loom.doc || !loom.artifactState) return [];
+    const pos = new Map(archFlow.nodes.map((n) => [n.id, n.position]));
+    return actionDurations(loom.artifactState.motions, pos, loom.doc.architecture.edges, loom.artifactState.actionCount);
+  }, [loom.doc, loom.artifactState, archFlow]);
   const artifactNodes = useMemo(() => {
     if (!loom.doc?.artifacts?.length || !loom.artifactState) return [];
     const pos = new Map(archFlow.nodes.map((n) => [n.id, n.position]));
@@ -204,8 +211,9 @@ function App() {
       loom.artifactState.before,
       compactArtifacts,
       loom.artifactState.actionCount,
+      actionMs,
     );
-  }, [loom.doc, loom.artifactState, loom.position, archFlow]);
+  }, [loom.doc, loom.artifactState, loom.position, archFlow, actionMs]);
   const noteArtifactState = useMemo(
     () => (loom.artifactState ? { ...loom.artifactState, compact: compactArtifacts } : null),
     [loom.artifactState],
@@ -478,7 +486,7 @@ function App() {
           )}
           <TaskDetailPanel hasDoc={!!loom.doc} isEmptyDoc={!!loom.doc && loom.doc.flow.tasks.length === 0} tasks={loom.currentTasks} routeColorByTask={loom.routeColorByTask}>
             {loom.doc && loom.currentTasks.some((t) => t.actions?.length) ? (
-              <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} />
+              <ActionCaption doc={loom.doc} tasks={loom.currentTasks} stepKey={loom.position.join(",")} actionMs={actionMs} />
             ) : null}
           </TaskDetailPanel>
         </div>
