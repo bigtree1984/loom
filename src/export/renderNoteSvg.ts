@@ -233,7 +233,13 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
   let artBottom = 0;
   if (artState && doc.artifacts?.length) {
     const touched = new Set([...artState.motions.values()].filter((m) => !m.ghost).map((m) => m.id));
-    const accentRoute = noteRouteColor(0);
+    // Each artifact in the route colour of the task that handled it
+    // (parallel tasks differ); tools too.
+    const routeOf = (id: string) => {
+      const m = [...artState.motions.values()].find((x) => x.id === id && !x.ghost && x.taskId);
+      const t = m ? doc.flow.tasks.find((x) => x.id === m.taskId) : undefined;
+      return noteRouteColor((t && highlight?.get(t.mainNode)?.routeIndex) ?? 0);
+    };
     const perNode = new Map<string, number>();
     // Wider than the node (up to the cell pitch) so labels survive.
     const chipW = Math.max(g.nodeW + 24, g.pitchX - 24);
@@ -263,8 +269,8 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
         const y = c.y + (layout === "hex" ? g.nodeH * 0.18 : g.nodeH / 2 - sz * 0.6);
         const on = touched.has(a.id);
         nodeSvg.push(
-          `<rect x="${r(x)}" y="${r(y)}" width="${sz}" height="${sz}" rx="8" fill="${on ? C.bg : C.textSub}"${on ? ` stroke="${accentRoute.strong}" stroke-width="${STROKE_MIN / 2}"` : ""}/>` +
-            `<g transform="translate(${r(x + 7)} ${r(y + 7)}) scale(${(sz - 14) / 24})" fill="${on ? accentRoute.strong : C.bg}"><path d="${WRENCH_PATH}"/></g>`,
+          `<rect x="${r(x)}" y="${r(y)}" width="${sz}" height="${sz}" rx="8" fill="${on ? C.bg : C.textSub}"${on ? ` stroke="${routeOf(a.id).strong}" stroke-width="${STROKE_MIN / 2}"` : ""}/>` +
+            `<g transform="translate(${r(x + 7)} ${r(y + 7)}) scale(${(sz - 14) / 24})" fill="${on ? routeOf(a.id).strong : C.bg}"><path d="${WRENCH_PATH}"/></g>`,
         );
         artBottom = Math.max(artBottom, y + sz);
       });
@@ -286,7 +292,7 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
       // In use: white band with an accent outline, so it still stands out
       // on a main node that is itself filled with the accent colour.
       const fill = on ? C.bg : C.textSub;
-      const stroke = on ? ` stroke="${accentRoute.strong}" stroke-width="${STROKE_MIN / 2}"` : "";
+      const stroke = on ? ` stroke="${routeOf(a.id).strong}" stroke-width="${STROKE_MIN / 2}"` : "";
       nodeSvg.push(`<rect x="${r(c.x - tw / 2)}" y="${r(top)}" width="${r(tw)}" height="${th}" rx="8" fill="${fill}"${stroke}/>`);
       const [line] = wrapText(a.label, { maxEm: (tw - 30) / NODE_FONT, maxLines: 1 });
       nodeSvg.lines([line], c.x, top + th / 2 + NODE_FONT * 0.36, {
@@ -353,8 +359,8 @@ export function renderNoteFigure(input: NoteFigureInput): NoteFigure {
       const on = touched.has(a.id);
       const x0 = c.x - chipW / 2;
       nodeSvg.push(
-        `<rect x="${r(x0)}" y="${r(top)}" width="${r(chipW)}" height="${chipH}" rx="${chipH / 2}" fill="${on ? accentRoute.light : C.bg}" stroke="${on ? accentRoute.strong : C.border}" stroke-width="${STROKE_MIN / 2}"/>` +
-          `<rect x="${r(x0 + 22)}" y="${r(top + chipH / 2 - 7)}" width="14" height="14" transform="rotate(45 ${r(x0 + 29)} ${r(top + chipH / 2)})" fill="${on ? accentRoute.strong : C.textSub}"/>`,
+        `<rect x="${r(x0)}" y="${r(top)}" width="${r(chipW)}" height="${chipH}" rx="${chipH / 2}" fill="${on ? routeOf(a.id).light : C.bg}" stroke="${on ? routeOf(a.id).strong : C.border}" stroke-width="${STROKE_MIN / 2}"/>` +
+          `<rect x="${r(x0 + 22)}" y="${r(top + chipH / 2 - 7)}" width="14" height="14" transform="rotate(45 ${r(x0 + 29)} ${r(top + chipH / 2)})" fill="${on ? routeOf(a.id).strong : C.textSub}"/>`,
       );
       artBottom = Math.max(artBottom, top + chipH);
       const extra = groupExtra.get(a.id);

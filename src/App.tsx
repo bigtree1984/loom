@@ -212,8 +212,9 @@ function App() {
       compactArtifacts,
       loom.artifactState.actionCount,
       actionMs,
+      (taskId) => routeColorFor(loom.routeColorByTask.get(taskId) ?? 0).edge,
     );
-  }, [loom.doc, loom.artifactState, loom.position, archFlow, actionMs]);
+  }, [loom.doc, loom.artifactState, loom.position, archFlow, actionMs, loom.routeColorByTask]);
   const noteArtifactState = useMemo(
     () => (loom.artifactState ? { ...loom.artifactState, compact: compactArtifacts } : null),
     [loom.artifactState],

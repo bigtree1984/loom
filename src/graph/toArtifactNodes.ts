@@ -271,7 +271,10 @@ export function toArtifactNodes(
   compact = false,
   actionCount = 0,
   actionMs: readonly number[] = [],
+  /** Route colour of a task (parallel tasks: each its own); else `color`. */
+  colorFor?: (taskId: string) => string,
 ): Node[] {
+  const colorOf = (m?: ArtifactMotion) => (m?.taskId && colorFor ? colorFor(m.taskId) : color);
   const touched = new Set([...motions.values()].filter((m) => !m.ghost).map((m) => m.id));
   const now = layoutSlots(artifacts, places, nodePos, g, compact, touched, motions);
   // Where each artifact sat before this step, so a move starts from its
@@ -349,7 +352,7 @@ export function toArtifactNodes(
     const data: LoomArtifactChipData = {
       label: extra ? `${a.label} ほか${extra}件` : a.label,
       active: touched.has(a.id),
-      color,
+      color: colorOf(m),
       // A chip used up in this step stays visible to play its fade.
       hidden: !p.visible && !m?.ended,
       anim,
@@ -431,7 +434,7 @@ export function toArtifactNodes(
     const data: LoomArtifactChipData = {
       label: ghostExtra ? `${a?.label ?? m.id} ほか${ghostExtra}件` : (a?.label ?? m.id),
       active: true,
-      color,
+      color: colorOf(m),
       anim: { kind: "move", points: pointsFor(m.path, end, prev?.pos.get(m.id)), fadeOut: true, ...ghostWin(m) },
       stepKey: `${stepKey}-${gi++}`,
     };

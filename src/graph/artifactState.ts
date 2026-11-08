@@ -40,6 +40,8 @@ export interface ArtifactMotion {
   touchedAt?: number;
   /** Born from this artifact on the same node (derive): appears below it. */
   bornAfter?: string;
+  /** Task of the current step that last handled it (route colour). */
+  taskId?: string;
 }
 
 export type ArtifactPlaces = Map<string, ArtifactPlace>;
@@ -79,6 +81,7 @@ export function applyTask(
       motions.set(id, {
         id,
         fromNode: places.get(id)?.node,
+        taskId: task.id,
         ...m,
         ...(onlyTouched ? { touchedAt: step } : { start: step, end: step }),
       });
@@ -86,6 +89,7 @@ export function applyTask(
     }
     motions.set(id, {
       ...prev,
+      taskId: task.id,
       ...m,
       ...(onlyTouched ? { touchedAt: prev.touchedAt ?? step } : { start: prev.start ?? step, end: step }),
     });
@@ -175,6 +179,7 @@ export function applyTask(
       fromNode: from,
       toNode: to,
       ghost: true,
+      taskId: task.id,
       path: [from, to].filter((n): n is string => !!n),
       start: step,
       end: step,
