@@ -3,7 +3,7 @@ import type { Connection, LoomDocument, LoomDocumentInput, Task } from "../types
 import { findBackEdgeKeys, findRootId } from "../graph/graphUtils";
 import { normalizeLoomDocument } from "../graph/normalizeDocument";
 import { artifactStateAt } from "../graph/artifactState";
-import { flowContext, mainRouteTo, stepFlow } from "../graph/mainRoute";
+import { flowContext, mainRouteTo, runningTasks, stepFlow } from "../graph/mainRoute";
 
 export type { NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
 import { addIoHighlights, type NodeHighlight as ArchNodeHighlight } from "../graph/taskFlow";
@@ -363,12 +363,12 @@ export function useLoomState(initialDoc: LoomDocument | LoomDocumentInput | null
   // current step did to them (DESIGN_v3 §3.4, §3.6).
   const artifactState = useMemo(
     () => {
-      if (!doc?.artifacts?.length) return null;
+      if (!doc?.artifacts?.length || !flowCtx) return null;
       let from = 0;
       history.forEach((h, i) => h.restartAfter && (from = i + 1));
-      return artifactStateAt(doc, [...history.slice(from).map((h) => h.position), position]);
+      return artifactStateAt(doc, [...history.slice(from), { position, joinArrivals }].map((h) => runningTasks(flowCtx, h)));
     },
-    [doc, history, position],
+    [doc, history, position, joinArrivals, flowCtx],
   );
 
   const highlightedArchNodes = useMemo(() => {

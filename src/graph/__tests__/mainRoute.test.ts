@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { mainRouteTo } from "../mainRoute";
+import { flowContext, mainRouteTo, runningTasks, stepFlow, type FlowSnapshot } from "../mainRoute";
 import { normalizeLoomDocument } from "../normalizeDocument";
 import receipt from "../../../samples/receipt-automation-v3.json";
-import type { LoomDocumentInput } from "../../types";
+import type { LoomDocument, LoomDocumentInput } from "../../types";
 
 const doc = normalizeLoomDocument(receipt as unknown as LoomDocumentInput);
 const route = (t: string, d = doc) => mainRouteTo(d, t)?.map((s) => s.position.join("+"));
@@ -34,5 +34,32 @@ describe("mainRouteTo", () => {
     flagged.flow.connections.find((c) => c.label === "高信頼度")!.main = true;
     expect(route("done", flagged)).toContain("t6");
     expect(route("done", flagged)).not.toContain("t7");
+  });
+});
+
+describe("runningTasks", () => {
+  it("leaves out a join still waiting on a longer branch", () => {
+    const d = {
+      flow: {
+        tasks: ["s", "a1", "a2", "b", "j"].map((id) => ({ id, label: id, description: "", mainNode: "n", inputNodes: [], outputNodes: [] })),
+        connections: [
+          { from: "s", to: "a1" },
+          { from: "s", to: "b" },
+          { from: "a1", to: "a2" },
+          { from: "a2", to: "j" },
+          { from: "b", to: "j" },
+        ],
+      },
+    } as unknown as LoomDocument;
+    const ctx = flowContext(d);
+    let s: FlowSnapshot = { position: ["s"], joinArrivals: {} };
+    const seen: string[][] = [];
+    for (let i = 0; i < 6; i++) {
+      seen.push(runningTasks(ctx, s));
+      const n = stepFlow(ctx, s);
+      if (!n) break;
+      s = n;
+    }
+    expect(seen).toEqual([["s"], ["a1", "b"], ["a2"], ["j"]]);
   });
 });

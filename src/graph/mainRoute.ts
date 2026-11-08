@@ -54,6 +54,17 @@ export type FlowContext = ReturnType<typeof flowContext>;
 
 /** One step of the flow (the same rule as 次へ / choosing an option).
  * Returns null when nothing would change. */
+/** Tasks of a snapshot that actually run in it: a join still waiting on
+ * other branches stays in `position` (to keep counting arrivals) but has
+ * not started — it is neither highlighted nor replayed until it runs. */
+export function runningTasks(ctx: FlowContext, s: FlowSnapshot): string[] {
+  return s.position.filter((id) => {
+    if (!ctx.isJoin(id)) return true;
+    const e = s.joinArrivals[id];
+    return e === "bypass" || (e?.length ?? 0) >= (ctx.required.get(id) ?? 0);
+  });
+}
+
 export function stepFlow(ctx: FlowContext, s: FlowSnapshot, choices: Record<string, string> = {}): FlowSnapshot | null {
   const next: string[] = [];
   const arrivals: JoinArrivals = {};
