@@ -131,6 +131,11 @@
         "a": "reviewer",
         "b": "user",
         "label": "再提出依頼"
+      },
+      {
+        "a": "google_drive",
+        "b": "ocr_agent",
+        "label": "画像を読む"
       }
     ],
     "groups": [
